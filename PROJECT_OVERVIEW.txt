@@ -1,0 +1,67 @@
+================================================================================
+AZDOC: AI HEALTH & DIAGNOSTICS FOR EVERY LIVING SYSTEM
+Comprehensive Project Overview, Problem Domain, and Target Audience
+================================================================================
+
+1. EXECUTIVE SUMMARY & CORE MISSION
+--------------------------------------------------------------------------------
+AZdoc is an all-in-one, multi-domain AI healthcare and diagnostic ecosystem built 
+to bridge the accessibility gap between advanced clinical/veterinary intelligence 
+and underserved populations in Pakistan and developing regions. 
+
+By unifying human healthcare, livestock veterinary advice, domestic pet wellness, 
+indoor plant care, and agricultural crop management into a single digital platform, 
+AZdoc democratizes expert-level diagnostics, multilingual voice consultations, and 
+rapid local supply chain fulfillment.
+
+
+2. THE PROBLEMS AZDOC SOLVES
+--------------------------------------------------------------------------------
+Traditional healthcare and agricultural systems face severe structural bottlenecks 
+across developing regions:
+* Rural Medical Deserts: Limited physical access to qualified human doctors, 
+  veterinarians, and agronomists in remote villages and rural towns.
+* Language and Literacy Barriers: Complex medical and agricultural terminology 
+  published primarily in English, excluding millions of farmers, livestock owners, 
+  and daily wage earners.
+* Supply Chain Friction: Disconnection between disease diagnosis and immediate access 
+  to authentic medicines, veterinary drugs, or agricultural fertilizers.
+* Fragmented Ecosystems: Separate, disconnected apps for human health, pet care, 
+  and crop disease monitoring, creating high friction for rural households that 
+  manage all three simultaneously.
+
+
+3. TARGET AUDIENCE & STAKEHOLDERS
+--------------------------------------------------------------------------------
+AZdoc is engineered for a diverse spectrum of users across five distinct domains:
+* Humans & Patients: Individuals seeking rapid clinical triage, skin condition 
+  analysis, symptom checking, and local pharmacy delivery.
+* Livestock Farmers & Herders: Rural communities requiring instant diagnosis and 
+  treatment plans for cattle, goats, poultry, and farm animals.
+* Domestic Pet Owners: Urban and suburban pet owners looking for reliable wellness 
+  guidance for cats, dogs, and companion animals.
+* Plant & Crop Growers: Farmers and agricultural workers monitoring crop leaf 
+  diseases, soil health, and regional weather outbreak risks.
+* Local Pharmacists & Retailers: Partner vendors connected via live GPS radar 
+  to fulfill prescriptions and deliver supplies via Cash-on-Delivery (COD).
+
+
+4. KEY INNOVATIONS & TECHNICAL ARCHITECTURE
+--------------------------------------------------------------------------------
+* Multilingual Voice AI: Native regional support including Urdu (Nastaliq), 
+  Punjabi, Sindhi, Pashto, Balochi, and Spanish powered by Speechmatics, 
+  Groq Whisper, and ElevenLabs TTS.
+* Multi-Domain Computer Vision Engine: Instant photo-based classification and 
+  treatment generation for human skin, animal fur/lesions, and crop leaves.
+* Geolocation Pharmacy Radar: Haversine formula calculation, live map routing, 
+  and real-time order tracking (Order Placed ➔ Pharmacist Packed ➔ Rider on the Way).
+* Offline-First Resilience: IndexedDB via Dexie.js for uninterrupted usage in 
+  low-connectivity environments, syncing bidirectionally with Supabase PostgreSQL 
+  upon network restoration.
+
+
+5. PROJECT OWNERSHIP & LEADERSHIP
+--------------------------------------------------------------------------------
+* Co-Founder & Chief Product Architect: Abdullah Khalid
+* Co-Founder & Chief Technology Officer: Abdullah Nadeem
+================================================================================
