@@ -1,0 +1,53 @@
+.env
+*.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Test / dev artifacts
+screenshot_*.png
+home_screen.png
+weather_tab.png
+televet_booking.png
+capture_page.png
+current_state.png
+*.pptx
+pptx-temp/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Large media & docs
+*.mp4
+*.zip
+*.pptx
+.pptx-temp/
+FasalDoc_Supporting_Documents/
+
+# IDE / Agent artifacts
+.qoder/
+dev-dist/
+.vercel
+.vercel-tmp/
+
