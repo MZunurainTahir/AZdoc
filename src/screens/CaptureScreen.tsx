@@ -916,22 +916,27 @@ export default function CaptureScreen() {
                     </div>
                   </>
                 ) : (
-                  /* Fallback plain remedy text */
-                  <div className="bg-gradient-to-br from-primary-bg to-bg-secondary rounded-xl p-4 mb-4 border border-primary/10">
-                    <h3 className="font-bold text-sm text-primary mb-2 flex items-center gap-1.5">
-                      <CheckCircle className="w-4 h-4" />
-                      {t("capture.treatment")}
+                  /* Fallback rich clinical remedy text block */
+                  <div className="bg-gradient-to-br from-primary-bg via-bg-elevated to-bg-secondary rounded-2xl p-5 mb-4 border border-primary/20 shadow-sm">
+                    <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2 border-b border-primary/10 pb-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      {lang === "ur" ? "تجویز کردہ طبی و علاج کا جامع منصوبہ" : "Recommended Clinical Treatment Plan"}
                     </h3>
-                    <ul className="space-y-2">
-                      {result.remedy.split('. ').filter(s => s.trim()).map((step, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-text-primary">
-                          <span className="w-5 h-5 bg-primary/10 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                            <span className="text-[10px] font-bold text-primary">{i + 1}</span>
-                          </span>
-                          {step.trim()}{!step.endsWith('.') ? '.' : ''}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-3">
+                      {result.remedy.split('\n').filter(s => s.trim()).map((line, i) => {
+                        const cleanLine = line.replace(/^[•\-*\d.]\s*/, '').trim();
+                        if (!cleanLine) return null;
+                        const isBoldHeader = line.includes('**') || line.includes(':');
+                        return (
+                          <div key={i} className="flex items-start gap-2.5 text-xs text-text-primary leading-relaxed">
+                            <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                            <span className={isBoldHeader ? "font-semibold" : ""}>
+                              {cleanLine.replace(/\*\*/g, '')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

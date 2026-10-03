@@ -165,8 +165,8 @@ export async function transcribeAudioBlob(
     }
   }
 
-  // 3. Fallback to default voice phrase for the target language
-  return langInfo.voiceSample;
+  // 3. Fallback: return empty string so we never insert fake/predefined text
+  return "";
 }
 
 /**
