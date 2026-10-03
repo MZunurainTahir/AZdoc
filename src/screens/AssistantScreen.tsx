@@ -43,15 +43,38 @@ interface Message {
   };
 }
 
-const ASSISTANT_CONTENT: Record<string, {
-  greetingEn: string; greetingUr: string;
-  chips: { label: string; query: string }[];
-  placeholderEn: string; placeholderUr: string;
-}> = {
-  human: {
-    greetingEn: "🩺 **Assalam-o-Alaikum! I am the AZdoc AI Health Doctor.**\n\nYou can speak or type in **Urdu, English, Punjabi, Sindhi, Pashto, Balochi or Spanish**. You can also 📷 **send a photo** of any skin condition, rash, wound, or prescription — I will analyze it.\n\nAsk me about fever, infections, chronic diseases, medications, child care, or any medical concern. I give **detailed, accurate clinical answers** with medicine names and dosages.",
-    greetingUr: "🩺 **السلام علیکم! میں اے زیڈ ڈاک AI ہیلتھ ڈاکٹر ہوں۔**\n\nآپ **اردو، پنجابی، سندھی، پشتو، بلوچی، انگریزی یا ہسپانوی** میں بول یا لکھ سکتے ہیں۔ آپ 📷 **تصویر بھی بھیج سکتے ہیں** — جلد کی بیماری، زخم یا نسخے کی۔\n\nبخار، انفیکشن، دوائیں، بچوں کی صحت یا کوئی بھی طبی سوال پوچھیں — میں تفصیلی جواب دیتا ہوں۔",
-    chips: [
+const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: string }[]>> = {
+  en: {
+    human: [
+      { label: "🤒 Fever & Body Pain", query: "I have had a fever and body pain since yesterday. Please provide the diagnosis, causes, and recommended medication dosage." },
+      { label: "🧴 Skin Rash & Itching", query: "I have red patches on my skin with severe itching. What is the diagnosis and recommended cream?" },
+      { label: "💊 Paracetamol Dosage", query: "What is the safe Paracetamol dosage for adults and children?" },
+      { label: "🩸 Blood Pressure Care", query: "What are the recommended medicines and lifestyle guidance for high blood pressure?" },
+      { label: "🤢 Vomiting & Diarrhea", query: "What is the immediate treatment for vomiting and diarrhea and how to prepare ORS?" },
+      { label: "🫁 Cough & Phlegm", query: "What is the best medicine and home remedy for chest cough and phlegm?" },
+    ],
+    livestock: [
+      { label: "🐄 Cow High Fever", query: "My cow has high fever and is not feeding. Please provide diagnosis and veterinary treatment." },
+      { label: "🔴 Foot & Mouth (FMD)", query: "My cattle has mouth blisters and hoof sores. What is the treatment for FMD?" },
+      { label: "🥛 Mastitis (Udder Swelling)", query: "Udder swelling and abnormal milk in cow. How to treat mastitis?" },
+      { label: "💨 Bloat Emergency", query: "Goat's stomach is bloated. What is the immediate first aid treatment?" },
+    ],
+    pet: [
+      { label: "🐕 Dog Mange & Itching", query: "My dog is scratching continuously and losing hair. What medicine should I use?" },
+      { label: "🕷️ Ticks & Fleas", query: "How to safely remove ticks and fleas from my pet dog and cat?" },
+      { label: "💉 Rabies Vaccine", query: "When and where should I get my pet vaccinated against rabies?" },
+    ],
+    plant: [
+      { label: "🍂 Yellow Leaves", query: "My houseplant leaves are turning yellow and falling off. What is the cause and cure?" },
+      { label: "🐛 Whiteflies & Pests", query: "How to eliminate whiteflies and mealybugs from indoor plants organically?" },
+    ],
+    crop: [
+      { label: "🌾 Wheat Yellow Rust", query: "What is the recommended fungicide spray and dosage for wheat yellow rust?" },
+      { label: "🌱 Fertilizer Per Acre", query: "What is the recommended Urea and DAP fertilizer per acre for wheat crop?" },
+    ],
+  },
+  ur: {
+    human: [
       { label: "🤒 بخار و جسم درد", query: "مجھے کل سے بخار ہے اور پورے جسم میں درد ہے، علامات اور علاج بتائیں" },
       { label: "🧴 جلد پر خارش", query: "جلد پر لال دھبے اور شدید خارش ہے، اسباب اور دوائی بتائیں" },
       { label: "💊 پیراسیٹامول خوراک", query: "بڑوں اور بچوں کے لیے پیراسیٹامول کی محفوظ خوراک کیا ہے؟" },
@@ -59,49 +82,64 @@ const ASSISTANT_CONTENT: Record<string, {
       { label: "🤢 الٹی و دست", query: "الٹی اور دست کے لیے فوری علاج اور ORS بنانے کا طریقہ" },
       { label: "🫁 کھانسی و بلغم", query: "کھانسی اور بلغم کے لیے بہترین دوائی اور گھریلو علاج" },
     ],
+    livestock: [
+      { label: "🐄 گائے کا بخار", query: "میری گائے کو تیز بخار ہے، چارہ نہیں کھا رہی، علاج بتائیں" },
+      { label: "🔴 منہ کھر", query: "بھینس میں منہ کھر کے چھالے ہیں، دوا اور خوراک بتائیں" },
+      { label: "🥛 سڑو (ماسٹائٹس)", query: "گائے کے تھن میں سوجن اور دودھ میں تبدیلی — سڑو کا علاج" },
+      { label: "💨 افارہ", query: "بکری کا پیٹ پھول گیا ہے، فوری گھریلو علاج کیا ہے؟" },
+    ],
+    pet: [
+      { label: "🐕 کتے کی خارش", query: "کتا بہت خارش کر رہا ہے اور بال جھڑ رہے ہیں، کیا کروں؟" },
+      { label: "🕷️ چیچر پسو", query: "بلی اور کتے کے چیچر اور پسو ختم کرنے کا طریقہ" },
+      { label: "💉 ریبز ویکسین", query: "کتے کو ریبز کا ٹیکہ کب اور کہاں لگوانا چاہیے؟" },
+    ],
+    plant: [
+      { label: "🍂 پیلے پتے", query: "میرے پودے کے پتے پیلے ہو کر گر رہے ہیں، کیا مسئلہ ہے؟" },
+      { label: "🐛 سفید کیڑے", query: "پودوں سے سفید کیڑے اور ملی بگ ختم کرنے کا دیسی طریقہ" },
+    ],
+    crop: [
+      { label: "🌾 گندم کنگی", query: "گندم کی پیلی کنگی کا بہترین اسپرے اور خوراک بتائیں" },
+      { label: "🌱 فی ایکڑ کھاد", query: "گندم کے لیے یوریا اور ڈی اے پی کی فی ایکڑ مقدار" },
+    ],
+  },
+};
+
+function getLanguageChips(domainId: string, lang: string) {
+  const langDict = CHIPS_BY_LANG[lang] || CHIPS_BY_LANG.en;
+  return langDict[domainId] || CHIPS_BY_LANG.en[domainId] || CHIPS_BY_LANG.ur.human;
+}
+
+const ASSISTANT_CONTENT: Record<string, {
+  greetingEn: string; greetingUr: string;
+  placeholderEn: string; placeholderUr: string;
+}> = {
+  human: {
+    greetingEn: "🩺 **Assalam-o-Alaikum! I am the AZdoc AI Health Doctor.**\n\nYou can speak or type in **Urdu, English, Punjabi, Sindhi, Pashto, Balochi or Spanish**. You can also 📷 **send a photo** of any skin condition, rash, wound, or prescription — I will analyze it.\n\nAsk me about fever, infections, chronic diseases, medications, child care, or any medical concern. I give **detailed, accurate clinical answers** with medicine names and dosages.",
+    greetingUr: "🩺 **السلام علیکم! میں اے زیڈ ڈاک AI ہیلتھ ڈاکٹر ہوں۔**\n\nآپ **اردو، پنجابی، سندھی، پشتو، بلوچی، انگریزی یا ہسپانوی** میں بول یا لکھ سکتے ہیں۔ آپ 📷 **تصویر بھی بھیج سکتے ہیں** — جلد کی بیماری، زخم یا نسخے کی۔\n\nبخار، انفیکشن، دوائیں، بچوں کی صحت یا کوئی بھی طبی سوال پوچھیں — میں تفصیلی جواب دیتا ہوں۔",
     placeholderEn: "Describe symptoms, ask any medical question, or send a photo…",
     placeholderUr: "علامات بیان کریں، کوئی بھی طبی سوال پوچھیں یا تصویر بھیجیں…",
   },
   livestock: {
     greetingEn: "🐄 **Assalam-o-Alaikum! I'm the AZdoc Livestock Vet.**\n\nAsk me about cattle, buffalo, goat, sheep, camel diseases — FMD, mastitis, bloat, LSD, vaccination, feed, milk drop — in any language. I give **detailed veterinary treatment with medicine doses per kg**.",
     greetingUr: "🐄 **السلام علیکم! میں اے زیڈ ڈاک لائیوسٹاک ویٹ ہوں۔**\n\nگائے، بھینس، بکری کی بیماریوں کے بارے میں پوچھیں — منہ کھر، سڑو، افارہ، لمپی، ویکسین، خوراک — کسی بھی زبان میں۔",
-    chips: [
-      { label: "🐄 گائے کا بخار", query: "میری گائے کو تیز بخار ہے، چارہ نہیں کھا رہی، علاج بتائیں" },
-      { label: "🔴 منہ کھر", query: "بھینس میں منہ کھر کے چھالے ہیں، دوا اور خوراک بتائیں" },
-      { label: "🥛 سڑو (ماسٹائٹس)", query: "گائے کے تھن میں سوجن اور دودھ میں تبدیلی — سڑو کا علاج" },
-      { label: "💨 افارہ", query: "بکری کا پیٹ پھول گیا ہے، فوری گھریلو علاج کیا ہے؟" },
-    ],
     placeholderEn: "Ask livestock health questions in your language…",
     placeholderUr: "مویشیوں کی بیماری کا سوال پوچھیں…",
   },
   pet: {
     greetingEn: "🐾 **Assalam-o-Alaikum! I'm the AZdoc Pet Vet.**\n\nAsk about dogs, cats, birds — mange, ticks, nutrition, parvo, vaccination. Send a 📷 **photo** for visual diagnosis.",
     greetingUr: "🐾 **السلام علیکم! میں اے زیڈ ڈاک پیٹ ویٹ ہوں۔**\n\nبلی، کتے اور پرندوں کی خارش، چیچر، ویکسین کے بارے میں پوچھیں۔ تصویر بھیج کر بھی تشخیص کروائیں۔",
-    chips: [
-      { label: "🐕 کتے کی خارش", query: "کتا بہت خارش کر رہا ہے اور بال جھڑ رہے ہیں، کیا کروں؟" },
-      { label: "🕷️ چیچر پسو", query: "بلی اور کتے کے چیچر اور پسو ختم کرنے کا طریقہ" },
-      { label: "💉 ریبز ویکسین", query: "کتے کو ریبز کا ٹیکہ کب اور کہاں لگوانا چاہیے؟" },
-    ],
     placeholderEn: "Ask pet health question in any language…",
     placeholderUr: "پالتو جانور کا سوال پوچھیں…",
   },
   plant: {
     greetingEn: "🪴 **Assalam-o-Alaikum! I'm the AZdoc Plant Doctor.**\n\nAsk about garden & indoor plants — yellow leaves, pests, fungus, watering. Send a 📷 **photo** of your plant for instant diagnosis.",
     greetingUr: "🪴 **السلام علیکم! میں اے زیڈ ڈاک پلانٹ ڈاکٹر ہوں۔**\n\nپودوں کے مسائل پوچھیں یا تصویر بھیجیں — پیلے پتے، کیڑے، پانی کی کمی — فوری تشخیص کروائیں۔",
-    chips: [
-      { label: "🍂 پیلے پتے", query: "میرے پودے کے پتے پیلے ہو کر گر رہے ہیں، کیا مسئلہ ہے؟" },
-      { label: "🐛 سفید کیڑے", query: "پودوں سے سفید کیڑے اور ملی بگ ختم کرنے کا دیسی طریقہ" },
-    ],
     placeholderEn: "Ask about your plants or send a photo…",
     placeholderUr: "پودوں کا سوال پوچھیں یا تصویر بھیجیں…",
   },
   crop: {
     greetingEn: "🌾 **Assalam-o-Alaikum! I'm the AZdoc Crop Doctor.**\n\nAsk about wheat, rice, cotton, sugarcane — diseases, spray dosages per acre, fertilizer schedules.",
     greetingUr: "🌾 **السلام علیکم! میں اے زیڈ ڈاک کراپ ڈاکٹر ہوں۔**\n\nگندم کی کنگی، دھان کا جھلساؤ، کپاس کے کیڑے، کھادوں کی مقدار — ہر فصل کا علاج بتاتا ہوں۔",
-    chips: [
-      { label: "🌾 گندم کنگی", query: "گندم کی پیلی کنگی کا بہترین اسپرے اور خوراک بتائیں" },
-      { label: "🌱 فی ایکڑ کھاد", query: "گندم کے لیے یوریا اور ڈی اے پی کی فی ایکڑ مقدار" },
-    ],
     placeholderEn: "Ask crop doctor in your language…",
     placeholderUr: "فصلوں کی بیماری کا سوال پوچھیں…",
   },
@@ -566,7 +604,7 @@ export default function AssistantScreen() {
 
       {/* ── Quick Chips ── */}
       <div className="mx-4 mb-2 flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-        {personality.chips.map((chip, idx) => (
+        {getLanguageChips(domainId, selectedLang).map((chip, idx) => (
           <button key={idx} onClick={() => setInput(chip.query)}
             className="shrink-0 bg-bg-elevated border border-primary/20 text-text-primary hover:border-primary px-3 py-1.5 rounded-full text-[11px] font-medium transition-all shadow-xs">
             {chip.label}
