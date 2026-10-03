@@ -167,118 +167,184 @@ Current domain: ${domain}
  */
 function fallbackResponse(query: string, lang: LangCode, domain: DomainId): string {
   const q = query.toLowerCase();
+  const isUrdu = lang === "ur" || q.match(/[\u0600-\u06FF]/);
 
-  // Fever keywords in multiple languages
-  if (q.includes("بخار") || q.includes("fever") || q.includes("بکھار") || q.includes("تپ")) {
-    if (lang === "ur") {
-      return `🩺 **بخار کی تشخیص و علاج (AZdoc AI Doctor)**
+  // 1. FEVER / بخار
+  if (q.includes("بخار") || q.includes("fever") || q.includes("بکھار") || q.includes("تپ") || q.includes("حرارت")) {
+    if (isUrdu) {
+      return `🩺 **بخار کی کامل تشخیص و طبی علاج (AZdoc AI Physician)**
 
-**ممکنہ وجوہات:**
-بخار وائرل انفیکشن (فلو/COVID)، بیکٹیریل انفیکشن (ٹائیفائیڈ، نمونیا)، ملیریا، یا ڈینگی کی علامت ہو سکتا ہے۔
+**1. ممکنہ تشخیصی اسباب:**
+• **وائرل انفیکشن:** موسمی فلو، دنگو بخار، COVID-19
+• **بیکٹیریل انفیکشن:** ٹائیفائیڈ (Salmonella)، نمونیا، پیشاب کا انفیکشن (UTI)
+• **مچھر سے بیماریاں:** ملیریا، ڈینگی فیور
 
-**فوری علاج:**
-• **Tab. Paracetamol (Panadol) 500mg** — ہر 6-8 گھنٹے بعد کھانے کے ساتھ (بالغوں کے لیے)
-• بچوں کے لیے: **Paracetamol Syrup (Calpol/Panadol)** — 10-15 mg/kg ہر 6 گھنٹے بعد
-• **Tab. Ibuprofen (Brufen) 400mg** — اگر درد بھی ہو تو (خالی پیٹ نہیں)
+**2. طبی ادویات مع خوراک:**
+• **Tab. Paracetamol (Panadol / Calpol) 500mg - 1000mg:** دن میں 3 سے 4 بار (ہر 6 گھنٹے بعد، کھانے کے بعد)
+• **Tab. Ibuprofen (Brufen) 400mg:** اگر شدید جسم درد یا سر درد بھی ہو (دن میں 2 بار)
+• **Syrup Panadol (بچوں کے لیے):** 10-15 mg فی کلوگرام وزن کے حساب سے، ہر 6 گھنٹے بعد
 
-**گھریلو علاج:**
-• پانی، لسی، ORS کافی مقدار میں پئیں (دن میں 8-10 گلاس)
-• ماتھے اور بغلوں پر ٹھنڈے پانی کی پٹیاں رکھیں
-• ہلکی خوراک: کھچڑی، دلیہ، سبزیوں کا شوربہ
+**3. گھریلو و احتیاطی تدابیر:**
+• پانی اور او آر ایس (ORS) کا بکثرت استعمال (کم از کم 10-12 گلاس روزانہ)
+• گردن، بغلوں اور ماتھے پر تازہ پانی کی پٹیاں رکھیں
+• ہلکی اور زود ہضم خوراک: کھچڑی، دلیہ، نمکین دہی، یخنی
 
-**فوری ڈاکٹر کے پاس جائیں اگر:**
-• بخار 103°F / 39.4°C سے اوپر جائے
-• 3 دن میں بخار نہ اترے
-• شدید سر درد، گردن اکڑنا، جلد پر سرخ دھبے ہوں
-• بچہ 3 ماہ سے کم عمر ہو
+**4. عاجلانہ ایمرجنسی علامات (فوری ہسپتال جائیں):**
+• بخار 103°F (39.4°C) سے تجاوز کر جائے
+• 3 دن تک مسلسل بخار نہ اترے یا جسم پر سرخ دھبے ظاہر ہوں
+• شدید الٹی، گردن میں اکڑن یا سانس لینے میں دشواری ہو
 
-⚠️ *یہ AI طبی رہنمائی ہے، لائسنس یافتہ معالج سے تصدیق ضروری ہے۔*`;
-    } else {
-      return `🩺 **Fever — Diagnosis & Treatment (AZdoc AI Doctor)**
+⚠️ *نوٹ: یہ AI طبی رہنمائی ہے، حتمی معائنے کے لیے لائسنس یافتہ ڈاکٹر سے رجوع کریں۔*`;
+    }
+    return `🩺 **Fever — Clinical Diagnosis & Treatment Plan (AZdoc AI Physician)**
 
-**Possible Causes:**
-Viral infection (flu, COVID-19), bacterial infection (typhoid, pneumonia), malaria, dengue, or UTI.
+**1. Differential Diagnosis:**
+• **Viral Etiology:** Influenza, COVID-19, Dengue virus
+• **Bacterial Etiology:** Typhoid fever, Pneumonia, Urinary tract infection
+• **Vector-Borne:** Malaria, Chikungunya
 
-**Immediate Treatment:**
-• **Tab. Paracetamol (Panadol/Calpol) 500-1000mg** every 6-8 hours with food (adults)
-• Children: **Paracetamol Syrup** — 10-15 mg/kg every 6 hours
-• **Tab. Ibuprofen (Brufen) 400mg** every 8 hours if pain is also present (not on empty stomach)
+**2. Recommended Pharmacotherapy:**
+• **Tab. Paracetamol (Panadol 500mg/1000mg):** 1-2 tablets orally every 6 hours post meals (Max 4g/day)
+• **Tab. Ibuprofen (Brufen 400mg):** 1 tablet every 8 hours for high inflammatory pain
+• **Pediatric Dosage:** Paracetamol Syrup 10-15 mg/kg body weight every 6 hours
 
-**Home Management:**
-• Drink plenty of fluids: water, ORS, coconut water, soups (8-10 glasses/day)
-• Apply cool wet cloths to forehead and armpits
-• Light diet: khichdi, soup, boiled vegetables
+**3. Supportive Care & Hydration:**
+• Oral Rehydration Salts (ORS), fresh juices, coconut water (2.5-3 Liters/day)
+• Tepid sponging on forehead, neck, and axillae
+• Nutritious light diet: soups, porridge, mashed fruits
 
-**Go to Emergency if:**
-• Temperature above 103°F / 39.4°C
-• Fever persists beyond 3 days
-• Severe headache, neck stiffness, skin rash
-• Child under 3 months old with any fever
+**4. Red Flags (Immediate Emergency Care):**
+• Temperature exceeding 103°F (39.4°C)
+• Fever persisting beyond 72 hours
+• Stiff neck, petechial rash, dyspnea, or altered mental state
 
-⚠️ *This is AI-generated guidance. Always consult a licensed physician for confirmation.*`;
+⚠️ *Medical Disclaimer: AI consultation. Confirm with a board-certified physician.*`;
+  }
+
+  // 2. SKIN / RASH / خارش / داد / جلد
+  if (q.includes("خارش") || q.includes("داد") || q.includes("جلد") || q.includes("skin") || q.includes("rash") || q.includes("itching") || q.includes("دھبے")) {
+    if (isUrdu) {
+      return `🩺 **جلد کی خارش، داد و انفیکشن کا علاج (AZdoc Dermatologist)**
+
+**1. ممکنہ تشخیصی اسباب:**
+• **فنگل انفیکشن (Ringworm / Tinea):** گول سرخ چھالے یا حلقے
+• **ایگزیما / الرجک ڈرمیٹائٹس:** خشک، کھردری جلد مع شدید خارش
+• **اسکیبیز (حرام خارش):** رات کو خارش کا شدید ہونا
+• **پتی / Urticaria:** الرجی کی وجہ سے اچانک دھبے
+
+**2. طبی ادویات و مرہم:**
+• **Cream Clotrimazole 1% (Canesten / Candid):** متاثرہ حصے پر دن میں 2 بار 3 ہفتے تک لگائیں
+• **Tab. Cetirizine (Zyrtec) 10mg:** رات کو سوتے وقت 1 گولی (خارش ختم کرنے کے لیے)
+• **Lotion Permethrin 5% (اگر اسکیبیز ہو):** گردن سے پاؤں تک پوری جسم پر 8 گھنٹے کے لیے لگائیں
+• **Soap Dermovate / Tetmosol:** نہانے کے لیے اینٹی سیپٹک صابن استعمال کریں
+
+**3. ضروری پرہیز:**
+• خارش والے حصے کو بار بار نہ رگڑیں
+• اپنے کپڑے، تولیہ اور بستر کھولتے پانی میں دھوئیں
+• تلی ہوئی چیزوں اور مصنوعی کھانوں سے پرہیز کریں
+
+⚠️ *AI طبی رہنمائی — جلد کے ماہر سے معائنہ کروائیں۔*`;
     }
   }
 
-  // Skin problems
-  if (q.includes("خارش") || q.includes("داد") || q.includes("جلد") || q.includes("skin") || q.includes("rash") || q.includes("itching")) {
-    if (lang === "ur") {
-      return `🩺 **جلد کی خارش و داد — AZdoc AI Doctor**
+  // 3. STOMACH / DIARRHEA / الٹی / دست / پیٹ درد
+  if (q.includes("الٹی") || q.includes("دست") || q.includes("پیٹ") || q.includes("stomach") || q.includes("diarrhea") || q.includes("vomiting") || q.includes("معدہ")) {
+    if (isUrdu) {
+      return `🩺 **معدہ، الٹی و اسہال (دست) کا علاج (AZdoc Gastro)**
 
-**ممکنہ تشخیص:**
-1. فنگل انفیکشن (داد / Ringworm) — گول لال حلقے
-2. ایگزیما — خشک، کھردری جلد مع خارش
-3. اسکیبیز (خارش) — رات کو زیادہ خارش
-4. الرجی رش — کیمیکل یا خوراک سے
+**1. ممکنہ تشخیصی اسباب:**
+• فوڈ پوائزننگ (گندا پانی یا خراب کھانا)
+• اینٹرو وائرس / گیسٹرو اینٹرائٹس
+• معدے کی تیزابیت (Acid Reflux / Gastritis)
 
-**علاج:**
-• **فنگل:** Clotrimazole 1% cream (Candid/Canesten) — دن میں 2 بار 3-4 ہفتے تک
-• **ایگزیما:** Hydrocortisone 1% cream — ہفتے میں 5 دن، پھر بند
-• **خارش (Scabies):** Permethrin 5% cream — پوری جسم پر رات بھر
-• **الرجی:** Tab. Cetirizine (Zyrtec) 10mg — رات کو 1 گولی
+**2. طبی ادویات:**
+• **ORS (Oral Rehydration Solution):** ہر دست یا الٹی کے بعد 1 گلاس پئیں
+• **Tab. Flagyl (Metronidazole) 400mg:** دن میں 3 بار 5 دن تک (اگر بیکٹیریل دست ہوں)
+• **Tab. Gravinate (Dimenhydrinate) 50mg:** الٹی روکنے کے لیے کھانے سے 30 منٹ پہلے
+• **Sachet Hydralyte / Enflor:** معدے کے اچھے بیکٹیریا کی بحالی کے لیے
 
-**پرہیز:**
-• متاثرہ حصے کو خشک رکھیں، زیادہ خارش نہ کریں
-• اپنے کپڑے اور تولیہ الگ دھوئیں
+**3. خوراک و پرہیز:**
+• کھچڑی، دہی، کیلا، اور ابلا ہوا چاول استعمال کریں
+• مرچ مسالحہ، دودھ، اور تلی ہوئی اشیاء سے مکمل پرہیز کریں
 
-⚠️ *AI طبی رہنمائی — ڈاکٹر سے تصدیق کروائیں۔*`;
+⚠️ *شدید نڈھالی یا خون انے کی صورت میں فوری ایمرجنسی رجوع کریں۔*`;
     }
   }
 
-  // Blood pressure
-  if (q.includes("بلڈ پریشر") || q.includes("blood pressure") || q.includes("bp") || q.includes("hypertension")) {
-    if (lang === "ur") {
-      return `🩺 **بلڈ پریشر (ہائی بی پی) — AZdoc AI Doctor**
+  // 4. LIVESTOCK / لائیوسٹاک / گائے / بھینس / بکری
+  if (domain === "livestock" || q.includes("گائے") || q.includes("بھینس") || q.includes("بکری") || q.includes("cow") || q.includes("buffalo") || q.includes("goat")) {
+    if (isUrdu) {
+      return `🐄 **لائیوسٹاک ویٹرنری تشخیص و علاج (AZdoc Senior Vet)**
 
-**نارمل BP:** 120/80 mmHg
-**ہائی BP (Hypertension):** 140/90 سے اوپر
+**1. علامات کا جائزہ:**
+• بخار، چارہ نہ کھانا، دودھ کی پیداوار میں اچانک کمی
+• تھنوں میں سوجن (ماسٹائٹس / سڑو)، پیٹ پھولنا (افارہ)
 
-**فوری اقدامات (اگر BP بہت زیادہ ہو):**
-• ایک جگہ بیٹھ کر گہری سانسیں لیں — 5 منٹ تک
-• **Tab. Amlodipine (Norvasc) 5mg** — ڈاکٹر کی ہدایت پر روزانہ صبح
-• **Tab. Losartan 50mg** — متبادل دوا
+**2. تجویز کردہ ادویات مع خوراک:**
+• **Inj. Oxytetracycline 200mg/ml (LA):** 1ml فی 10 کلوگرام جسمانی وزن (گوشت میں)
+• **Inj. Ketoprofen / Meloxicam:** 1ml فی 20 کلوگرام وزن (بخار اور درد کے لیے)
+• **Powder Bovicarb / Tympanol (افارہ کے لیے):** 100g پانی میں گھول کر پلائیں
+• **Thiazole / Mastitis Tube (سڑو کے لیے):** تھن کی صفائی کے بعد تھن کے اندر لگائیں
 
-**پرہیز:**
-• نمک بالکل کم کریں (دن میں 1 چائے کا چمچ سے کم)
-• چائے، کافی، سگریٹ بند کریں
-• روزانہ 30 منٹ چلیں
+**3. دیکھ بھال:**
+• جانور کو ٹھنڈی سائے دار جگہ پر رکھیں اور تازہ پانی فراہم کریں
+• دودھ نکالنے سے پہلے اور بعد میں تھنوں کو پوویڈین سے دھوئین
 
-**فوری ڈاکٹر کے پاس جائیں اگر:**
-• BP 180/120 سے اوپر ہو
-• شدید سر درد، نظر دھندلی، سینے میں درد ہو
-
-⚠️ *AI رہنمائی — ڈاکٹر سے BP دوائیں تجویز کروائیں۔*`;
+⚠️ *محکمہ لائیوسٹاک ہیلپ لائن: 0800-29000*`;
     }
   }
 
-  // Generic domain-specific fallback
-  const genericByDomain: Partial<Record<DomainId, string>> = {
-    livestock: lang === "ur"
-      ? `🐄 **اے زیڈ ڈاک لائیوسٹاک ویٹ**\n\nآپ کے سوال کی بنیاد پر:\n• جانور کی علامات نوٹ کریں (بخار، خوراک نہ کھانا، پیدا وار کم)\n• قریبی ویٹرنری ڈاکٹر سے رابطہ کریں\n• **Oxytetracycline 200mg/ml** — مختلف بیماریوں میں 1ml/10kg\n• پانی کافی مقدار میں دیں\n• ہیلپ لائن: 0800-29000 (محکمہ لائیوسٹاک پنجاب)`
-      : `🐄 **AZdoc Livestock Vet**\n\nFor your livestock concern:\n• Monitor: Temperature, feed intake, milk production\n• Contact your nearest livestock extension officer\n• **Oxytetracycline 200mg/ml** injection at 1ml/10kg for infections\n• Ensure adequate clean water and shade\n• Punjab Livestock Helpline: 0800-29000`,
-  };
+  // 5. CROPS / Plant / فصل / گندم / پودا
+  if (domain === "crop" || domain === "plant" || q.includes("گندم") || q.includes("فصل") || q.includes("پودا") || q.includes("crop") || q.includes("wheat") || q.includes("plant")) {
+    if (isUrdu) {
+      return `🌾 **زرعی و نباتاتی تشخیص (AZdoc Agronomist)**
 
-  return genericByDomain[domain] || (lang === "ur"
-    ? `🩺 **اے زیڈ ڈاک AI ڈاکٹر**\n\nآپ کی علامات کی بنیاد پر براہ کرم مزید تفصیل فراہم کریں:\n• علامات کب سے ہیں؟\n• کتنا بخار ہے؟\n• کوئی دوا لے رہے ہیں؟\n\nیا فوری مدد کے لیے صحت ہیلپ لائن: **0800-88000** پر کال کریں۔\n\n⚠️ *AI رہنمائی — ڈاکٹر سے تصدیق کروائیں۔*`
-    : `🩺 **AZdoc AI Doctor**\n\nPlease provide more details about your symptoms:\n• How long have you had these symptoms?\n• Any fever? What temperature?\n• Any medicines taken already?\n\nFor urgent help: **Rescue 1122** or **Sehat Sahulat Helpline: 0800-88000**\n\n⚠️ *AI-generated guidance — always confirm with a licensed doctor.*`
-  );
+**1. بیماری یا کیڑے کی شناخت:**
+• پتوں کا پیلا ہونا، فنگس کنگی، سست تیلہ، ملی بگ، یا غذائی اجزاء کی کمی
+
+**2. اسپرے و کھاد کا علاج:**
+• **فنگل بیماری (کنگی / جھلساؤ):** Nativo (Tebuconazole + Trifloxystrobin) 65g فی ایکڑ اسپرے کریں
+• **سست تیلہ و ملی بگ:** Imidacloprid 200SL — 100ml فی 100 لیٹر پانی
+• **پتوں کی پیلاہٹ:** Zinc Sulphate 33% (6kg/acre) + Urea (1 bag/acre)
+
+**3. ضروری اقدامات:**
+• اسپرے ہمیشہ صبح یا شام کے وقت کریں جب دھوپ کم ہو
+• وتر کی حالت دیکھ کر پانی لگائیں
+
+⚠️ *زرعی ہیلپ لائن: 0800-15000*`;
+    }
+  }
+
+  // General default fallback
+  if (isUrdu) {
+    return `🩺 **اے زیڈ ڈاک AI طبی معاون**
+
+آپ کے طبی یا زرعی سوال کا تفصیلی جائزہ لیا گیا ہے:
+
+**1. عمومی طبی ہدایت:**
+• اپنی علامات کے آغاز کی تاریخ، شدت، اور کسی بھی موجودہ دوائی کی تفصیل دیں
+• بخار یا انفیکشن کی صورت میں **Tab. Paracetamol 500mg** (دن میں 3 بار) اور وافر پانی استعمال کریں
+• اگر مسئلہ جلد، مویشی یا فصل کا ہے تو اوپر دیے گئے 📷 **کیمرے سے تصویر بھیجیں** تاکہ فوری AI تشخیص ہو سکے۔
+
+**2. فوری رابطہ:**
+• صحت ہیلپ لائن: **0800-88000**
+• ایمرجنسی: **1122**
+
+⚠️ *یہ AI طبی رہنمائی ہے، حتمی معائنے کے لیے ڈاکٹر سے تصدیق کریں۔*`;
+  }
+
+  return `🩺 **AZdoc AI Clinical Assistant**
+
+Thank you for your inquiry. Here is the structured medical breakdown:
+
+**1. Assessment & Recommendations:**
+• Maintain proper hydration (8-10 glasses of clean water daily) and rest.
+• For mild pain/fever: **Tab. Paracetamol 500mg** every 6 hours post meals.
+• For skin/crop issues: Use the 📷 **Camera Button** below to capture a direct photo for instant deep AI vision analysis.
+
+**2. Emergency Contacts:**
+• National Health Helpline: **0800-88000**
+• Rescue Emergency: **1122**
+
+⚠️ *AI Clinical Guidance. Consult a registered physician for confirmed treatment.*`;
 }

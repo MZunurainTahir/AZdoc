@@ -17,10 +17,15 @@ export default function HistoryScreen() {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [activeCases, setActiveCases] = useState<(RecoveryCase & { diagnosis?: Diagnosis })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<DomainId | "all">(domain.id);
+  const [filter, setFilter] = useState<DomainId>(domain.id);
   const [showActiveCases] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [usingCached, setUsingCached] = useState(false);
+
+  // Sync filter with active domain whenever domain context changes
+  useEffect(() => {
+    setFilter(domain.id);
+  }, [domain.id]);
 
   const fetchHistory = useCallback(async () => {
     if (!user) return;
