@@ -25,7 +25,7 @@ import {
 import {
   Send, Mic, MicOff, Volume2, VolumeX,
   Languages, FileText, Sparkles, X,
-  Camera, CameraOff, Image as ImageIcon,
+  Camera, CameraOff, Image as ImageIcon, Upload,
   AlertCircle, RotateCcw, ChevronDown,
 } from "lucide-react";
 
@@ -202,6 +202,19 @@ export default function AssistantScreen() {
   const audioChunksRef = useRef<Blob[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setCapturedImage(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -574,39 +587,60 @@ export default function AssistantScreen() {
 
       {/* ── Input bar ── */}
       <div className="mx-4">
-        <div className="flex items-center gap-2 bg-bg-elevated border-2 border-border focus-within:border-primary/50 rounded-3xl px-3 py-1.5 shadow-sm transition-all">
+        {/* Hidden File Input for Uploading Photo from Device Gallery */}
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleGalleryUpload}
+        />
+
+        <div className="flex items-center gap-1.5 bg-bg-elevated border-2 border-border focus-within:border-primary/50 rounded-3xl px-3 py-1.5 shadow-sm transition-all">
           {/* Mic button */}
           <button onClick={() => { if (isListening) stopRecording(); else startRecording(); }}
             title="Voice Input"
-            className={`flex items-center justify-center rounded-2xl p-2.5 transition-all ${isListening ? "bg-danger text-white shadow-lg animate-pulse scale-105" : "text-text-muted hover:text-primary hover:bg-primary/10"}`}>
+            className={`flex items-center justify-center rounded-2xl p-2 transition-all ${isListening ? "bg-danger text-white shadow-lg animate-pulse scale-105" : "text-text-muted hover:text-primary hover:bg-primary/10"}`}>
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
 
-          {/* Camera button */}
+          {/* Live Camera button */}
           <button onClick={() => { if (showCamera) stopCamera(); else startCamera(); }}
-            title="Camera / Photo"
-            className={`flex items-center justify-center rounded-2xl p-2.5 transition-all ${showCamera ? "bg-primary text-white" : capturedImage ? "text-primary bg-primary/10" : "text-text-muted hover:text-primary hover:bg-primary/10"}`}>
-            {capturedImage ? <ImageIcon className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+            title="Live Camera Photo"
+            className={`flex items-center justify-center rounded-2xl p-2 transition-all ${showCamera ? "bg-primary text-white" : capturedImage ? "text-primary bg-primary/10" : "text-text-muted hover:text-primary hover:bg-primary/10"}`}>
+            <Camera className="w-5 h-5" />
+          </button>
+
+          {/* Upload Photo from Gallery button */}
+          <button onClick={() => galleryInputRef.current?.click()}
+            title="Upload Photo from Gallery"
+            className="flex items-center justify-center rounded-2xl p-2 text-text-muted hover:text-primary hover:bg-primary/10 transition-all">
+            <Upload className="w-5 h-5" />
           </button>
 
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedLang === "ur" ? personality.placeholderUr : `Type in ${activeLangObj.name} or use mic / camera…`}
-            className="flex-1 py-2 text-xs sm:text-sm bg-transparent outline-none text-text-primary placeholder:text-text-muted/60"
+            placeholder={selectedLang === "ur" ? personality.placeholderUr : `Type, speak or upload photo…`}
+            className="flex-1 py-2 text-xs sm:text-sm bg-transparent outline-none text-text-primary placeholder:text-text-muted/60 min-w-0"
           />
 
           <button onClick={sendMessage}
             disabled={!input.trim() && !capturedImage}
-            className="flex items-center justify-center rounded-2xl p-2.5 text-white bg-primary hover:bg-primary-light transition-all disabled:opacity-40 shadow-md active:scale-95">
+            className="flex items-center justify-center rounded-2xl p-2.5 text-white bg-primary hover:bg-primary-light transition-all disabled:opacity-40 shadow-md active:scale-95 shrink-0">
             <Send className="w-4 h-4" />
           </button>
         </div>
-        {/* Camera icon hint */}
+
+        {/* Input hint */}
         {!capturedImage && !showCamera && (
-          <p className="text-center text-[10px] text-text-muted mt-1.5">
-            📷 Tap camera icon to send a photo for AI visual diagnosis
+          <p className="text-center text-[10px] text-text-muted mt-1.5 flex items-center justify-center gap-2">
+            <span>📷 Live Camera</span>
+            <span>·</span>
+            <span>🖼️ Upload Photo</span>
+            <span>·</span>
+            <span>🎙️ 7-Lang Voice AI</span>
           </p>
         )}
       </div>
