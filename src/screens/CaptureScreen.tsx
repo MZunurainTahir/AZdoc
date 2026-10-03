@@ -38,14 +38,35 @@ function mockDiagnosis(mode: DomainId) {
   ];
   const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }[]> = {
     human: [
-      { displayDisease: "Possible Fungal Skin Infection", confidence: 0.74, advice: "Keep the area clean and dry. This is preliminary guidance only — a licensed doctor should confirm. Book a consult in the Doctors tab." },
-      { displayDisease: "Allergic Skin Reaction", confidence: 0.69, advice: "Avoid suspected allergens and apply a cool compress. Please consult a doctor for confirmation and medication." },
+      {
+        displayDisease: "Possible Fungal Skin Infection (Tinea / Ringworm)",
+        confidence: 0.88,
+        advice: "• **Medication:** Clotrimazole 1% Cream (Candid / Canesten) — Apply twice daily for 2-3 weeks.\n• **Oral Anti-itch:** Tab. Cetirizine 10mg — 1 tablet at night for itching relief.\n• **Care:** Keep skin clean and dry. Wash towels and clothing in hot water. Avoid scratching to prevent secondary bacterial infection.\n• **Warning:** Seek immediate consultation if red streaks or fever develop."
+      },
+      {
+        displayDisease: "Allergic Contact Dermatitis / Skin Rash",
+        confidence: 0.84,
+        advice: "• **Medication:** Hydrocortisone 1% Cream — Apply thinly twice daily for 5 days.\n• **Oral Antihistamine:** Tab. Loratadine 10mg — 1 tablet daily.\n• **Home Treatment:** Apply cool compresses for 10-15 minutes 3 times daily. Wash skin with mild non-perfumed soap.\n• **Precautions:** Avoid synthetic fabrics and harsh laundry detergents."
+      },
+      {
+        displayDisease: "Viral Upper Respiratory Track Symptom",
+        confidence: 0.82,
+        advice: "• **Medication:** Tab. Paracetamol 500mg — 1 tablet every 6 hours post meals.\n• **Syrup:** Grintus / Hydryllin Syrup — 2 teaspoons 3 times daily.\n• **Home Remedies:** Steam inhalation with menthol twice daily. Saltwater gargles 3-4 times a day.\n• **Hydration:** Drink at least 2.5-3 liters of warm water, soups, and ORS."
+      },
     ],
     pet: [
-      { displayDisease: "Possible Mange / Tick Dermatitis", confidence: 0.81, advice: "Isolate bedding and groom regularly. A vet visit is recommended for skin scrapings and treatment." },
+      {
+        displayDisease: "Feline / Canine Mange & Parasitic Dermatitis",
+        confidence: 0.86,
+        advice: "• **Medication:** Ivermectin / Bravecto Spot-on solution per weight.\n• **Medicated Bath:** Wash with Benzoyl Peroxide / Sulfur shampoo twice weekly.\n• **Environment:** Wash pet bedding in hot water and sanitize environment.\n• **Vet Consult:** Schedule skin scraping test with AZdoc Pet Vet."
+      },
     ],
     plant: [
-      { displayDisease: "Leaf Spot Disease", confidence: 0.83, advice: "Remove affected leaves, improve air circulation, and apply a broad-spectrum fungicide from the Medicine Store." },
+      {
+        displayDisease: "Fungal Leaf Spot (Cercospora / Alternaria)",
+        confidence: 0.89,
+        advice: "• **Chemical Spray:** Spray Copper Oxychloride 50% WP (2.5g per liter of water) or Mancozeb.\n• **Organic Treatment:** Spray Neem oil solution (5ml per liter) every 7 days.\n• **Pruning:** Remove infected leaves and destroy them away from healthy plants.\n• **Watering:** Water at soil level; avoid wetting plant foliage."
+      },
     ],
   };
   let picked: { displayDisease: string; confidence: number; remedyKey?: string; advice?: string };

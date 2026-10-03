@@ -159,11 +159,8 @@ export default function HistoryScreen() {
     fetchHistory();
   };
 
-  // Filter and search (default scope = active domain; switch to "all" to see everything)
-  let filtered = diagnoses;
-  if (filter !== "all") {
-    filtered = filtered.filter(d => asDomainId((d as any).type) === filter);
-  }
+  // Filter and search strictly scoped to active domain (module isolation)
+  let filtered = diagnoses.filter(d => asDomainId((d as any).type) === domain.id);
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(d =>
@@ -173,13 +170,13 @@ export default function HistoryScreen() {
   }
 
   const activeRecoveryCases = showActiveCases
-    ? activeCases.filter(c => c.status === 'active' && (filter === "all" || asDomainId((c.diagnosis as any)?.type) === filter))
+    ? activeCases.filter(c => c.status === 'active' && asDomainId((c.diagnosis as any)?.type) === domain.id)
     : [];
 
-  // Per-domain stats strip
-  const scopedScans = filter === "all" ? diagnoses : diagnoses.filter(d => asDomainId((d as any).type) === filter);
-  const scopedActive = activeCases.filter(c => c.status === 'active' && (filter === "all" || asDomainId((c.diagnosis as any)?.type) === filter)).length;
-  const scopedRecovered = scopedScans.filter(d => (d as any).recovered === true || d.confidence !== null && d.confidence !== undefined && d.confidence < 0.5).length;
+  // Per-domain stats strip for active module
+  const scopedScans = diagnoses.filter(d => asDomainId((d as any).type) === domain.id);
+  const scopedActive = activeCases.filter(c => c.status === 'active' && asDomainId((c.diagnosis as any)?.type) === domain.id).length;
+  const scopedRecovered = scopedScans.filter(d => (d as any).recovered === true || (d.confidence !== null && d.confidence !== undefined && d.confidence < 0.5)).length;
 
   return (
     <div className="flex flex-col flex-1 bg-bg-primary pb-4">
@@ -296,35 +293,13 @@ export default function HistoryScreen() {
         </div>
       )}
 
-      {/* Filter tabs — one chip per AZdoc domain */}
-      {diagnoses.length > 0 && (
-        <div className="flex gap-2 px-5 mb-4 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all min-touch whitespace-nowrap ${
-              filter === "all"
-                ? "bg-primary text-white shadow-sm"
-                : "bg-bg-elevated text-text-muted border border-border hover:bg-bg-secondary"
-            }`}
-          >
-            {t("history.all")}
-          </button>
-          {DOMAINS.map((d) => (
-            <button
-              key={d.id}
-              onClick={() => setFilter(d.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all min-touch whitespace-nowrap flex items-center gap-1.5 ${
-                filter === d.id
-                  ? `bg-gradient-to-r ${d.theme.gradient} text-white shadow-sm`
-                  : "bg-bg-elevated text-text-muted border border-border hover:bg-bg-secondary"
-              }`}
-            >
-              <span>{d.emoji}</span>
-              {lang === "ur" ? d.brandNameUrdu : d.brandName}
-            </button>
-          ))}
+      {/* Active Module History Header Badge */}
+      <div className="px-5 mb-3 flex items-center gap-2">
+        <div className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r ${domain.theme.gradient} text-white shadow-sm`}>
+          <span>{domain.emoji}</span>
+          <span>{lang === "ur" ? domain.brandNameUrdu : domain.brandName} {lang === "ur" ? "ہسٹری" : "History"}</span>
         </div>
-      )}
+      </div>
 
       {/* Content */}
       {loading ? (
