@@ -153,8 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Use backend admin signup so the user is created with a confirmed email.
-      // This avoids Supabase's default email-confirmation flow that blocks login.
+      // Try backend signup first if available
       const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,18 +164,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        return {
-          error: { message: data.message || "Signup failed. Please try again." } as AuthError,
-        };
+      if (res.ok) {
+        return await signIn(normalizedEmail, password);
       }
-
-      // The account is already confirmed on the backend, so log the user in immediately.
-      return await signIn(normalizedEmail, password);
-    } catch (err: any) {
-      return { error: { message: err.message || "Network error" } as AuthError };
+    } catch {
+      // Backend api endpoint not mounted in static SPA, fall through to client Supabase signup
     }
+
+    // Direct Supabase client signup fallback
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: { full_name: fullName },
+      },
+    });
+
+    if (error) {
+      return { error };
+    }
+
+    // Auto sign in or show notification
+    if (data.session) {
+      setUser(data.session.user);
+    } else {
+      // Also attempt sign in directly if email confirmation disabled in project
+      const signInRes = await signIn(normalizedEmail, password);
+      if (!signInRes.error) return signInRes;
+    }
+
+    return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
