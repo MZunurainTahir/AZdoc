@@ -507,17 +507,71 @@ export default function AssistantScreen() {
 
       {/* ── Camera View ── */}
       {showCamera && (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col">
-          <div className="flex items-center justify-between p-4 bg-black/70">
-            <button onClick={stopCamera} className="text-white p-2"><X className="w-6 h-6" /></button>
-            <span className="text-white font-bold text-sm">📷 AZdoc Camera</span>
-            <button onClick={flipCamera} className="text-white p-2"><RotateCcw className="w-5 h-5" /></button>
+        <div className="fixed inset-0 bg-black z-[99999] flex flex-col justify-between overflow-hidden">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent z-10">
+            <button
+              onClick={stopCamera}
+              className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all min-touch"
+              title="Close Camera"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="flex items-center gap-2 bg-black/60 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-md shadow-lg">
+              <Camera className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span className="text-white font-bold text-xs uppercase tracking-wider">
+                {selectedLang === "ur" ? "اے زیڈ ڈاک کیمرہ" : "AZdoc Camera"}
+              </span>
+            </div>
+            <button
+              onClick={flipCamera}
+              className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all min-touch"
+              title="Flip Camera"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
           </div>
-          <video ref={videoRef} autoPlay playsInline muted className="flex-1 object-cover w-full" />
-          <canvas ref={canvasRef} className="hidden" />
-          <div className="flex justify-center p-6 bg-black/70">
-            <button onClick={capturePhoto}
-              className="w-16 h-16 rounded-full bg-white border-4 border-primary shadow-xl active:scale-95 transition-transform" />
+
+          {/* Video Viewport & Focus Guidelines */}
+          <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* Viewfinder crosshairs / focus frame */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+              <div className="w-64 h-64 border-2 border-dashed border-white/40 rounded-3xl relative flex items-center justify-center">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-xl" />
+                <span className="text-white/80 text-[11px] font-semibold bg-black/60 px-3 py-1 rounded-full backdrop-blur-xs border border-white/10 shadow-md">
+                  {selectedLang === "ur" ? "تشخیص کے لیے یہاں لائیں" : "Center subject in box"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Shutter Capture Bar */}
+          <div className="relative z-10 flex flex-col items-center gap-3 p-6 pb-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+            {/* Outer Ring Shutter Button */}
+            <button
+              onClick={capturePhoto}
+              aria-label="Capture Photo"
+              className="group relative w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 bg-black/40 hover:bg-black/60 active:scale-90 transition-all duration-200 shadow-2xl cursor-pointer min-touch"
+            >
+              <div className="w-full h-full rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-inner group-hover:brightness-110 transition-all">
+                <Camera className="w-8 h-8 text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+              </div>
+            </button>
+
+            {/* Clear Text Action Button */}
+            <button
+              onClick={capturePhoto}
+              className="text-white text-xs font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-full border border-white/30 shadow-xl active:scale-95 transition-all flex items-center gap-2"
+            >
+              <Camera className="w-4 h-4" />
+              {selectedLang === "ur" ? "تصویر کھینچیں (کلک کریں)" : "TAP TO CAPTURE PHOTO"}
+            </button>
           </div>
         </div>
       )}
