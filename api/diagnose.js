@@ -91,7 +91,7 @@ Return ONLY a valid JSON object, with no markdown code blocks, in this exact for
 
     return res.status(200).json({
       disease: String(parsed.disease || "Diagnosed Condition"),
-      matchedKey: parsed.matchedKey || null,
+      matchedKey: null,
       confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.88)),
       isHealthy: Boolean(parsed.isHealthy),
       description: String(parsed.description || ""),

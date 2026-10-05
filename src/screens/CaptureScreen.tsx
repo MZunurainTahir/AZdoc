@@ -771,9 +771,8 @@ export default function CaptureScreen() {
                       <span className="text-white/70 text-[10px] uppercase tracking-wide">
                         {getDomain(mode).emoji} {lang === "ur" ? getDomain(mode).nameUrdu : getDomain(mode).name}
                       </span>
-                      {remedyInfo && (
-                        <p className="text-white/60 text-xs">{remedyInfo.scientificName}</p>
-                      )}
+                      <p className="text-white/90 text-xs font-semibold">{result.disease}</p>
+
                     </div>
                     <button
                       onClick={speakDiagnosis}
@@ -795,14 +794,14 @@ export default function CaptureScreen() {
                 </div>
 
                 <h2 className="text-xl font-bold text-text-primary mb-0.5">
-                  {remedyInfo ? (lang === "ur" ? remedyInfo.nameUrdu : remedyInfo.name) : result.disease}
+                  {result.disease}
                 </h2>
                 {remedyInfo && (
                   <p className="text-xs text-text-muted mb-1">
                     {lang === "ur" ? remedyInfo.cropOrAnimalUrdu : remedyInfo.cropOrAnimal}
-                    {remedyInfo.scientificName && ` · ${remedyInfo.scientificName}`}
                   </p>
                 )}
+
 
                 {/* Saved field notes */}
                 {fieldNotes.trim() && (

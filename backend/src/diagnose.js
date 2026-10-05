@@ -121,7 +121,7 @@ export async function diagnoseImage({ imageBase64, mode, lang, symptoms, domain 
 
     return {
       disease: String(parsed.disease || "Diagnosed Condition"),
-      matchedKey: parsed.matchedKey && typeof parsed.matchedKey === "string" ? parsed.matchedKey : null,
+      matchedKey: null,
       confidence,
       isHealthy: Boolean(parsed.isHealthy),
       description: String(parsed.description || ""),
