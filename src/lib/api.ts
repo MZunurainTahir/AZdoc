@@ -53,19 +53,31 @@ async function callOpenRouterVisionDirect(params: {
       ? params.imageBase64
       : `data:image/jpeg;base64,${params.imageBase64}`;
 
-    const promptText = `You are a clinical and botanical AI vision specialist for domain: ${params.mode}.
+    const promptText = `You are a lead medical, veterinary, and agricultural multi-modal AI vision specialist for domain: ${params.mode}.
 Language requested: ${params.lang === "ur" ? "Urdu script" : "English"}.
 User symptoms: ${params.symptoms ? JSON.stringify(params.symptoms) : "None specified"}.
 
-Analyze the attached photo carefully and identify the condition.
+STRICT ACCURACY & MULTI-MODAL DIAGNOSTIC INSTRUCTIONS:
+1. Examine the visual features of the provided image in detail (color, lesion shape, anatomical location, texture, species/organ). DO NOT output generic or repetitive diagnoses!
+2. HUMAN DIAGNOSTICS:
+   - Eye photos (redness, discharge, sclera) -> Prescribe Moxifloxacin drops / cool compress. NEVER prescribe skin creams/Clotrimazole for eyes!
+   - Throat photos (exudate, swollen tonsils) -> Prescribe gargles, Paracetamol, Amoxicillin. NEVER prescribe skin creams for throats!
+   - Skin Fungal (circular ring rash) -> Prescribe Clotrimazole 1% Cream.
+   - Skin Eczema (dry flexor rash) -> Prescribe Hydrocortisone 1% Cream & emollients.
+3. PET DIAGNOSTICS (PetsDoc):
+   - Ticks/Fleas (bugs attached to coat) -> Prescribe Bravecto / Simparica / Frontline Plus.
+   - Mange (hair loss, crusty skin) -> Prescribe Simparica / NexGard / Benzoyl Peroxide bath.
+   - Cat Ear Mites (coffee ground ear wax) -> Prescribe Selamectin (Revolution Spot-on) & Surolan drops. NEVER prescribe Permethrin to cats!
+   - Hotspot (wet oozing lesion) -> Prescribe E-collar, Chlorhexidine wash, Cephalexin.
+
 Return ONLY a valid JSON object in this exact format:
 {
-  "disease": "Exact clinical or botanical name of condition",
+  "disease": "Exact clinical or botanical name of condition specific to this image",
   "matchedKey": null,
-  "confidence": 0.88,
+  "confidence": 0.92,
   "isHealthy": false,
-  "description": "2 sentences describing visual symptoms",
-  "remedy": "Complete step-by-step treatment plan: recommended medicines with exact names and dosage, organic remedies, care tips, and emergency red flags.${params.lang === "ur" ? " (Write in Urdu)" : ""}"
+  "description": "2-3 sentences describing unique visual signs seen in this specific image",
+  "remedy": "Anatomy and species safe step-by-step treatment plan with exact medicine names, dosage, care tips, and precautions.${params.lang === "ur" ? " (Write in Urdu)" : ""}"
 }`;
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
