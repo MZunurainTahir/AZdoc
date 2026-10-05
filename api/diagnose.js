@@ -47,19 +47,27 @@ STRICT MULTI-MODAL TAXONOMY & MEDICAL SAFETY RULES:
    - THROAT / ORAL (Pharyngitis / Tonsillitis): Prescribe warm saline gargles, Paracetamol, or oral antibiotics (Amoxicillin). NEVER PRESCRIBE antifungal skin cream (Clotrimazole) for throat infections!
    - SKIN FUNGAL (Tinea / Ringworm): Prescribe topical antifungal (Clotrimazole 1% Cream or Terbinafine 1%).
    - SKIN ECZEMA (Atopic Dermatitis): Prescribe Hydrocortisone 1% cream and emollients.
-2. CROP / BOTANICAL DIAGNOSTICS:
+2. VETERINARY & PET DIAGNOSTICS (PetsDoc):
+   - Identify BOTH target animal species (Dog, Cat, Bird, Rabbit) AND affected organ (Skin/Coat vs Ears/Pinna vs Eyes vs Paws vs Teeth).
+   - TICKS & FLEAS: Output 'Canine Tick & Flea Infestation' -> Prescribe Bravecto (Fluralaner) / Simparica / Frontline Plus.
+   - MANGE: Output 'Canine Demodectic / Sarcoptic Mange' -> Prescribe Simparica / NexGard / Benzoyl Peroxide baths.
+   - CAT EAR MITES: Output 'Feline Otodectic Mange (Ear Mites)' -> Prescribe Selamectin (Revolution Spot-on) & Surolan ear drops.
+   - HOTSPOT / PYODERMA: Output 'Acute Moist Dermatitis (Hotspot)' -> Prescribe E-collar, Chlorhexidine 2% wash, Cephalexin.
+   - CRITICAL SPECIES TOXICITY RULES: NEVER prescribe Permethrin or Acetaminophen (Paracetamol) to CATS (HIGHLY TOXIC/FATAL). Warn against Ivermectin in Collie breeds (MDR1 gene sensitivity).
+3. CROP / BOTANICAL DIAGNOSTICS:
    - Identify BOTH host crop (Tomato vs Potato vs Wheat) AND condition.
    - DO NOT assign potato tuber harvesting notes to Tomatoes!
 
 Return ONLY a valid JSON object, with no markdown code blocks, in this exact format:
 {
-  "disease": "Exact clinical name (e.g. 'Acute Bacterial Conjunctivitis', 'Streptococcal Tonsillitis', 'Fungal Skin Infection (Ringworm)', 'Atopic Dermatitis')",
-  "body_region": "eye | throat_oral | skin_arm | skin_leg | skin_torso | ear | chest_xray",
+  "disease": "Exact clinical name (e.g. 'Canine Tick & Flea Infestation', 'Acute Bacterial Conjunctivitis', 'Streptococcal Tonsillitis', 'Feline Otodectic Mange', 'Acute Moist Dermatitis')",
+  "species": "Dog | Cat | Bird | Cattle | Human | Plant",
+  "body_region": "eye | throat_oral | skin_arm | skin_coat | ear_pinna | paw | chest_xray",
   "matchedKey": null,
   "confidence": 0.92,
   "isHealthy": false,
   "description": "2 sentences describing visual signs seen in the photo",
-  "remedy": "Anatomy-safe, evidence-based clinical treatment plan with exact medication names, dosages, symptomatic relief, red flags, and precautions.${lang === "ur" ? " (Write in Urdu)" : ""}"
+  "remedy": "Species-safe, anatomy-verified clinical treatment plan with exact medication names, dosages, care instructions, toxicity warnings, and precautions.${lang === "ur" ? " (Write in Urdu)" : ""}"
 }`;
 
 

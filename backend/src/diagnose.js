@@ -88,20 +88,28 @@ function buildPrompt({ mode, lang, symptoms, domain }) {
     `   - Determine the EXACT human body region first (Eye vs Throat/Oral vs Skin Arm/Leg/Body vs Ear vs Chest X-Ray).\n` +
     `   - EYE INFECTIONS: Prescribe Ophthalmic Drops (Moxifloxacin 0.5% drops) or cool compresses. NEVER PRESCRIBE topical skin creams or Clotrimazole for eye conditions!\n` +
     `   - THROAT / ORAL: Prescribe warm saline gargles, Paracetamol, or oral Amoxicillin. NEVER PRESCRIBE antifungal skin cream (Clotrimazole) for throat infections!\n` +
-    `   - SKIN FUNGAL (Tinea / Ringworm): Prescribe topical antifungal (Clotrimazole 1% Cream or Terbinafine 1%).\n` +
+    `   - SKIN FUNGAL: Prescribe topical antifungal (Clotrimazole 1% Cream or Terbinafine 1%).\n` +
     `   - SKIN ECZEMA: Prescribe Hydrocortisone 1% cream and emollients.\n` +
-    `2. CROP / BOTANICAL DIAGNOSTICS:\n` +
+    `2. VETERINARY & PET DIAGNOSTICS (PetsDoc):\n` +
+    `   - Identify BOTH target animal species (Dog, Cat, Bird, Rabbit) AND affected organ (Skin/Coat vs Ears/Pinna vs Eyes vs Paws vs Teeth).\n` +
+    `   - TICKS & FLEAS: Output 'Canine Tick & Flea Infestation' -> Prescribe Bravecto (Fluralaner) / Simparica / Frontline Plus.\n` +
+    `   - MANGE: Output 'Canine Demodectic / Sarcoptic Mange' -> Prescribe Simparica / NexGard / Benzoyl Peroxide baths.\n` +
+    `   - CAT EAR MITES: Output 'Feline Otodectic Mange (Ear Mites)' -> Prescribe Selamectin (Revolution Spot-on) & Surolan ear drops.\n` +
+    `   - HOTSPOT / PYODERMA: Output 'Acute Moist Dermatitis (Hotspot)' -> Prescribe E-collar, Chlorhexidine 2% wash, Cephalexin.\n` +
+    `   - CRITICAL SPECIES TOXICITY RULES: NEVER prescribe Permethrin or Acetaminophen (Paracetamol) to CATS (HIGHLY TOXIC/FATAL). Warn against Ivermectin in Collie breeds (MDR1 gene sensitivity).\n` +
+    `3. CROP / BOTANICAL DIAGNOSTICS:\n` +
     `   - Identify BOTH host crop (Tomato vs Potato vs Wheat) AND condition.\n` +
     `   - DO NOT assign potato tuber harvesting notes to Tomatoes!\n\n` +
     `Respond with ONLY a single JSON object, no markdown, no commentary, in this exact shape:\n` +
     `{\n` +
-    `  "disease": "Exact clinical or botanical name (e.g. 'Acute Bacterial Conjunctivitis', 'Streptococcal Tonsillitis', 'Fungal Skin Infection (Ringworm)', 'Atopic Dermatitis', 'Tomato Late Blight')",\n` +
-    `  "body_region": "eye | throat_oral | skin_arm | skin_leg | skin_torso | ear | chest_xray | plant_leaf",\n` +
+    `  "disease": "Exact clinical name (e.g. 'Canine Tick & Flea Infestation', 'Acute Bacterial Conjunctivitis', 'Streptococcal Tonsillitis', 'Feline Otodectic Mange', 'Acute Moist Dermatitis')",\n` +
+    `  "species": "Dog | Cat | Bird | Cattle | Human | Plant",\n` +
+    `  "body_region": "eye | throat_oral | skin_arm | skin_coat | ear_pinna | paw | chest_xray",\n` +
     `  "matchedKey": "one of the catalogue keys above, or null",\n` +
     `  "confidence": 0.92,\n` +
     `  "isHealthy": false,\n` +
     `  "description": "2-3 sentences explaining visual signs seen in the photo",\n` +
-    `  "remedy": "Anatomy-safe, domain-tailored step-by-step treatment plan: recommended medicines with exact names and dosages, symptomatic relief, care precautions, and red flag warnings."\n` +
+    `  "remedy": "Species-safe, anatomy-verified clinical treatment plan with exact medication names, dosages, care instructions, toxicity warnings, and precautions."\n` +
     `}`
   );
 

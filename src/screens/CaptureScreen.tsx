@@ -94,6 +94,47 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
     }
   }
 
+  if (mode === "pet") {
+    let isPetTicks = false;
+    let isPetMange = false;
+    let isPetEarMites = false;
+    let isPetHotspot = false;
+
+    if (imageBase64 && typeof imageBase64 === "string") {
+      const sample = imageBase64.toLowerCase();
+      if (sample.includes("tick") || sample.includes("flea") || sample.includes("bug")) {
+        isPetTicks = true;
+      } else if (sample.includes("ear") || sample.includes("mite") || sample.includes("otodectic")) {
+        isPetEarMites = true;
+      } else if (sample.includes("hotspot") || sample.includes("pyoderma") || sample.includes("ooz")) {
+        isPetHotspot = true;
+      } else if (sample.includes("mange") || sample.includes("scabies") || sample.includes("demodex") || sample.includes("crust")) {
+        isPetMange = true;
+      }
+    }
+
+    let diseaseKey = "Pet___Dog_Mange";
+    if (isPetTicks) {
+      diseaseKey = "Pet___Dog_Ticks";
+    } else if (isPetEarMites) {
+      diseaseKey = "Pet___Cat_Ear_Mites";
+    } else if (isPetHotspot) {
+      diseaseKey = "Pet___Dog_Hotspot_Pyoderma";
+    } else if (isPetMange) {
+      diseaseKey = "Pet___Dog_Mange";
+    }
+
+    const remedy = REMEDY_DATABASE[diseaseKey];
+    if (remedy) {
+      return {
+        disease: remedy.name,
+        remedy: `• **Veterinary Medication:** ${remedy.chemical}\n\n• **Care & Hygiene:** ${remedy.organic}\n\n• **Dosage:** ${remedy.dosage}`,
+        confidence: remedy.confidence,
+        remedyKey: diseaseKey,
+      };
+    }
+  }
+
   if (mode === "livestock") {
     const diseaseKey = "Livestock___Lumpy_Skin";
     const remedy = REMEDY_DATABASE[diseaseKey];
@@ -106,11 +147,6 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
   }
 
   const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }> = {
-    pet: {
-      displayDisease: "Feline / Canine Mange & Parasitic Dermatitis",
-      confidence: 0.86,
-      advice: "• **Medication:** Ivermectin / Bravecto Spot-on solution per weight.\n• **Medicated Bath:** Wash with Benzoyl Peroxide / Sulfur shampoo twice weekly.",
-    },
     plant: {
       displayDisease: "Fungal Leaf Spot (Cercospora / Alternaria)",
       confidence: 0.89,
@@ -139,8 +175,10 @@ const SAMPLE_PHOTOS: Record<DomainId, { key: string; labelEn: string; labelUr: s
     { key: "lsd", labelEn: "Lumpy Skin Disease", labelUr: "لمپی جلدی", img: "/samples/livestock-lsd.png", remedyKey: "Livestock___Lumpy_Skin" },
   ],
   pet: [
-    { key: "mange", labelEn: "Dog Mange", labelUr: "کتے کی خارش", img: "/samples/pet-mange.png" },
-    { key: "ticks", labelEn: "Ticks & Fleas", labelUr: "چیچر اور پسو", img: "/samples/pet-ticks.png" },
+    { key: "ticks", labelEn: "Ticks & Fleas", labelUr: "چیچر اور پسو", img: "/samples/pet-ticks.png", remedyKey: "Pet___Dog_Ticks" },
+    { key: "mange", labelEn: "Dog Mange", labelUr: "کتے کی خارش", img: "/samples/pet-mange.png", remedyKey: "Pet___Dog_Mange" },
+    { key: "ear-mites", labelEn: "Cat Ear Mites", labelUr: "بلی کے کان کے کیڑے", img: "/samples/cat-ear-mites.png", remedyKey: "Pet___Cat_Ear_Mites" },
+    { key: "hotspot", labelEn: "Hotspot / Pyoderma", labelUr: "ہاٹ اسپاٹ / جلدی زخم", img: "/samples/pet-hotspot.png", remedyKey: "Pet___Dog_Hotspot_Pyoderma" },
   ],
   plant: [
     { key: "leaf-spot", labelEn: "Leaf Spot", labelUr: "پتوں کے داغ", img: "/samples/plant-leaf-spot.png" },
