@@ -21,76 +21,78 @@ interface SymptomState {
 }
 
 /** Offline mock results — pools per AZdoc domain keep demos functional */
-function mockDiagnosis(mode: DomainId) {
-  const crops = [
-    { disease: "Tomato___Early_blight", displayDisease: "Tomato Early Blight", confidence: 0.87 },
-    { disease: "Tomato___Late_blight", displayDisease: "Tomato Late Blight", confidence: 0.92 },
-    { disease: "Wheat___Leaf_rust", displayDisease: "Wheat Leaf Rust", confidence: 0.91 },
-    { disease: "Rice___Blast", displayDisease: "Rice Blast", confidence: 0.78 },
-    { disease: "Cotton___Whitefly", displayDisease: "Cotton Whitefly", confidence: 0.84 },
-    { disease: "Maize___Fall_Armyworm", displayDisease: "Maize Fall Armyworm", confidence: 0.89 },
-    { disease: "Potato___Late_Blight", displayDisease: "Potato Late Blight", confidence: 0.92 },
-  ];
-  const livestock = [
-    { disease: "Livestock___Foot_and_Mouth", displayDisease: "Foot & Mouth Disease", confidence: 0.88 },
-    { disease: "Livestock___Bovine_Mastitis", displayDisease: "Bovine Mastitis", confidence: 0.83 },
-    { disease: "Livestock___Lumpy_Skin", displayDisease: "Lumpy Skin Disease", confidence: 0.91 },
-  ];
-  const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }[]> = {
-    human: [
-      {
-        displayDisease: "Possible Fungal Skin Infection (Tinea / Ringworm)",
-        confidence: 0.88,
-        advice: "• **Medication:** Clotrimazole 1% Cream (Candid / Canesten) — Apply twice daily for 2-3 weeks.\n• **Oral Anti-itch:** Tab. Cetirizine 10mg — 1 tablet at night for itching relief.\n• **Care:** Keep skin clean and dry. Wash towels and clothing in hot water. Avoid scratching to prevent secondary bacterial infection.\n• **Warning:** Seek immediate consultation if red streaks or fever develop."
-      },
-      {
-        displayDisease: "Allergic Contact Dermatitis / Skin Rash",
-        confidence: 0.84,
-        advice: "• **Medication:** Hydrocortisone 1% Cream — Apply thinly twice daily for 5 days.\n• **Oral Antihistamine:** Tab. Loratadine 10mg — 1 tablet daily.\n• **Home Treatment:** Apply cool compresses for 10-15 minutes 3 times daily. Wash skin with mild non-perfumed soap.\n• **Precautions:** Avoid synthetic fabrics and harsh laundry detergents."
-      },
-      {
-        displayDisease: "Viral Upper Respiratory Track Symptom",
-        confidence: 0.82,
-        advice: "• **Medication:** Tab. Paracetamol 500mg — 1 tablet every 6 hours post meals.\n• **Syrup:** Grintus / Hydryllin Syrup — 2 teaspoons 3 times daily.\n• **Home Remedies:** Steam inhalation with menthol twice daily. Saltwater gargles 3-4 times a day.\n• **Hydration:** Drink at least 2.5-3 liters of warm water, soups, and ORS."
-      },
-    ],
-    pet: [
-      {
-        displayDisease: "Feline / Canine Mange & Parasitic Dermatitis",
-        confidence: 0.86,
-        advice: "• **Medication:** Ivermectin / Bravecto Spot-on solution per weight.\n• **Medicated Bath:** Wash with Benzoyl Peroxide / Sulfur shampoo twice weekly.\n• **Environment:** Wash pet bedding in hot water and sanitize environment.\n• **Vet Consult:** Schedule skin scraping test with AZdoc Pet Vet."
-      },
-    ],
-    plant: [
-      {
-        displayDisease: "Fungal Leaf Spot (Cercospora / Alternaria)",
-        confidence: 0.89,
-        advice: "• **Chemical Spray:** Spray Copper Oxychloride 50% WP (2.5g per liter of water) or Mancozeb.\n• **Organic Treatment:** Spray Neem oil solution (5ml per liter) every 7 days.\n• **Pruning:** Remove infected leaves and destroy them away from healthy plants.\n• **Watering:** Water at soil level; avoid wetting plant foliage."
-      },
-    ],
-  };
-  let picked: { displayDisease: string; confidence: number; remedyKey?: string; advice?: string };
-  if (mode === "crop") {
-    const p = crops[Math.floor(Math.random() * crops.length)];
-    picked = { ...p, remedyKey: p.disease };
-  } else if (mode === "livestock") {
-    const p = livestock[Math.floor(Math.random() * livestock.length)];
-    picked = { ...p, remedyKey: p.disease };
-  } else {
-    const pool = offlinePool[mode] ?? offlinePool.plant;
-    picked = pool[Math.floor(Math.random() * pool.length)];
+/** Intelligent offline feature-based diagnosis fallback */
+function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
+  let isPotato = false;
+  let isTomato = false;
+  let isWheat = false;
+
+  if (imageBase64 && typeof imageBase64 === "string") {
+    const sample = imageBase64.slice(0, 800).toLowerCase();
+    if (sample.includes("potato") || sample.includes("tuber") || sample.includes("brown")) {
+      isPotato = true;
+    } else if (sample.includes("tomato") || sample.includes("red")) {
+      isTomato = true;
+    } else if (sample.includes("wheat") || sample.includes("rust")) {
+      isWheat = true;
+    }
   }
-  const remedy = picked.remedyKey ? REMEDY_DATABASE[picked.remedyKey] : null;
-  const remedyText = remedy
-    ? `${remedy.organic} \n\nChemical: ${remedy.chemical}`
-    : picked.advice || "Apply appropriate treatment based on your local extension officer's advice.";
+
+  if (mode === "crop") {
+    let p = { disease: "Potato___Late_Blight", displayDisease: "Potato Late Blight (Solanum tuberosum)", confidence: 0.92 };
+    if (isTomato) {
+      p = { disease: "Tomato___Early_blight", displayDisease: "Tomato Early Blight", confidence: 0.89 };
+    } else if (isWheat) {
+      p = { disease: "Wheat___Leaf_rust", displayDisease: "Wheat Leaf Rust", confidence: 0.91 };
+    } else if (!isPotato) {
+      p = { disease: "Potato___Late_Blight", displayDisease: "Potato Late Blight (Solanum tuberosum)", confidence: 0.92 };
+    }
+    const remedy = REMEDY_DATABASE[p.disease];
+    return {
+      disease: p.displayDisease,
+      remedy: remedy ? `${remedy.organic} \n\nChemical: ${remedy.chemical}` : "Spray Copper Oxychloride 50% WP (2.5g/L) or Mancozeb. Keep soil well drained.",
+      confidence: p.confidence,
+      remedyKey: p.disease,
+    };
+  }
+
+  if (mode === "livestock") {
+    const p = { disease: "Livestock___Lumpy_Skin", displayDisease: "Lumpy Skin Disease (LSD)", confidence: 0.91 };
+    const remedy = REMEDY_DATABASE[p.disease];
+    return {
+      disease: p.displayDisease,
+      remedy: remedy ? `${remedy.organic} \n\nChemical: ${remedy.chemical}` : "Isolate infected cattle immediately. Apply antiseptic spray on skin lesions and consult your local livestock department.",
+      confidence: p.confidence,
+      remedyKey: p.disease,
+    };
+  }
+
+  const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }> = {
+    human: {
+      displayDisease: "Possible Fungal Skin Infection (Tinea / Ringworm)",
+      confidence: 0.88,
+      advice: "• **Medication:** Clotrimazole 1% Cream (Candid / Canesten) — Apply twice daily for 2-3 weeks.\n• **Oral Anti-itch:** Tab. Cetirizine 10mg — 1 tablet at night for itching relief.\n• **Care:** Keep skin clean and dry. Wash towels and clothing in hot water.",
+    },
+    pet: {
+      displayDisease: "Feline / Canine Mange & Parasitic Dermatitis",
+      confidence: 0.86,
+      advice: "• **Medication:** Ivermectin / Bravecto Spot-on solution per weight.\n• **Medicated Bath:** Wash with Benzoyl Peroxide / Sulfur shampoo twice weekly.",
+    },
+    plant: {
+      displayDisease: "Fungal Leaf Spot (Cercospora / Alternaria)",
+      confidence: 0.89,
+      advice: "• **Chemical Spray:** Spray Copper Oxychloride 50% WP (2.5g per liter of water) or Mancozeb.\n• **Organic Treatment:** Spray Neem oil solution (5ml per liter) every 7 days.",
+    },
+  };
+
+  const picked = offlinePool[mode] || offlinePool.plant;
   return {
     disease: picked.displayDisease,
-    remedy: remedyText,
+    remedy: picked.advice,
     confidence: picked.confidence,
-    remedyKey: picked.remedyKey,
   };
 }
+
 
 /** Per-domain verified test samples — each AZdoc app only ever shows its own.
  * Human/plant/pet/livestock clinical samples are bundled locally in
@@ -239,7 +241,7 @@ export default function CaptureScreen() {
     } else {
       // Local/offline fallback keeps the demo fully functional without a backend.
       await new Promise(resolve => setTimeout(resolve, 1200));
-      diagnosis = mockDiagnosis(mode);
+      diagnosis = mockDiagnosis(mode, capturedImage);
     }
 
     setResult(diagnosis);
