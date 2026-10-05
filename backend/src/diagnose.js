@@ -83,19 +83,25 @@ function buildPrompt({ mode, lang, symptoms, domain }) {
 
   return (
     `You are ${d.role}.${symptomLine}\n\n` +
-    `STRICT MULTI-MODAL TAXONOMY & CONTEXT RULES:\n` +
-    `1. Identify BOTH host crop/plant/animal (e.g. Tomato vs Potato vs Wheat vs Cattle) AND condition (e.g. Late Blight, Early Blight, Healthy).\n` +
-    `2. DO NOT assign potato tuber harvesting notes to Tomatoes! If the image shows Tomatoes or tomato fruits, output "Tomato Late Blight" or "Tomato Early Blight" with foliage/vine advice.\n` +
-    `3. If the image shows Potato tubers or potato foliage, output "Potato Late Blight" with tuber harvesting notes.\n` +
-    `4. Keep treatment advice strictly tailored to the identified crop.\n\n` +
+    `STRICT MULTI-MODAL TAXONOMY & MEDICAL SAFETY RULES:\n` +
+    `1. ANATOMY-FIRST ROUTING FOR HUMAN MODE:\n` +
+    `   - Determine the EXACT human body region first (Eye vs Throat/Oral vs Skin Arm/Leg/Body vs Ear vs Chest X-Ray).\n` +
+    `   - EYE INFECTIONS: Prescribe Ophthalmic Drops (Moxifloxacin 0.5% drops) or cool compresses. NEVER PRESCRIBE topical skin creams or Clotrimazole for eye conditions!\n` +
+    `   - THROAT / ORAL: Prescribe warm saline gargles, Paracetamol, or oral Amoxicillin. NEVER PRESCRIBE antifungal skin cream (Clotrimazole) for throat infections!\n` +
+    `   - SKIN FUNGAL (Tinea / Ringworm): Prescribe topical antifungal (Clotrimazole 1% Cream or Terbinafine 1%).\n` +
+    `   - SKIN ECZEMA: Prescribe Hydrocortisone 1% cream and emollients.\n` +
+    `2. CROP / BOTANICAL DIAGNOSTICS:\n` +
+    `   - Identify BOTH host crop (Tomato vs Potato vs Wheat) AND condition.\n` +
+    `   - DO NOT assign potato tuber harvesting notes to Tomatoes!\n\n` +
     `Respond with ONLY a single JSON object, no markdown, no commentary, in this exact shape:\n` +
     `{\n` +
-    `  "disease": "Exact clinical or botanical name (e.g. 'Tomato Late Blight' or 'Potato Late Blight')",\n` +
+    `  "disease": "Exact clinical or botanical name (e.g. 'Acute Bacterial Conjunctivitis', 'Streptococcal Tonsillitis', 'Fungal Skin Infection (Ringworm)', 'Atopic Dermatitis', 'Tomato Late Blight')",\n` +
+    `  "body_region": "eye | throat_oral | skin_arm | skin_leg | skin_torso | ear | chest_xray | plant_leaf",\n` +
     `  "matchedKey": "one of the catalogue keys above, or null",\n` +
     `  "confidence": 0.92,\n` +
     `  "isHealthy": false,\n` +
     `  "description": "2-3 sentences explaining visual signs seen in the photo",\n` +
-    `  "remedy": "Crop-tailored step-by-step treatment plan: recommended medicines with exact names and dosages, organic/home remedies, care precautions, and harvest timing."\n` +
+    `  "remedy": "Anatomy-safe, domain-tailored step-by-step treatment plan: recommended medicines with exact names and dosages, symptomatic relief, care precautions, and red flag warnings."\n` +
     `}`
   );
 

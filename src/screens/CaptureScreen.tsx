@@ -26,6 +26,11 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
   let isTomato = false;
   let isWheat = false;
 
+  let isHumanEye = false;
+  let isHumanThroat = false;
+  let isHumanEczema = false;
+  let isHumanFungal = false;
+
   if (imageBase64 && typeof imageBase64 === "string") {
     const sample = imageBase64.toLowerCase();
     if (sample.includes("1518977676601") || sample.includes("potato") || sample.includes("tuber")) {
@@ -34,6 +39,16 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
       isTomato = true;
     } else if (sample.includes("1574323347407") || sample.includes("wheat") || sample.includes("rust")) {
       isWheat = true;
+    }
+
+    if (sample.includes("eye") || sample.includes("conjunctivitis") || sample.includes("sclera")) {
+      isHumanEye = true;
+    } else if (sample.includes("throat") || sample.includes("tonsil") || sample.includes("pharyngitis")) {
+      isHumanThroat = true;
+    } else if (sample.includes("eczema") || sample.includes("dermatitis") || sample.includes("atopic")) {
+      isHumanEczema = true;
+    } else if (sample.includes("fungal") || sample.includes("ringworm") || sample.includes("tinea")) {
+      isHumanFungal = true;
     }
   }
 
@@ -56,6 +71,29 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
     };
   }
 
+  if (mode === "human") {
+    let diseaseKey = "Human___Fungal_Ringworm";
+    if (isHumanEye) {
+      diseaseKey = "Human___Eye_Conjunctivitis";
+    } else if (isHumanThroat) {
+      diseaseKey = "Human___Throat_Tonsillitis";
+    } else if (isHumanEczema) {
+      diseaseKey = "Human___Eczema";
+    } else if (isHumanFungal) {
+      diseaseKey = "Human___Fungal_Ringworm";
+    }
+
+    const remedy = REMEDY_DATABASE[diseaseKey];
+    if (remedy) {
+      return {
+        disease: remedy.name,
+        remedy: `• **Clinical Guidance:** ${remedy.organic}\n\n• **Recommended Treatment Plan:** ${remedy.chemical}\n\n• **Dosage & Safety:** ${remedy.dosage}`,
+        confidence: remedy.confidence,
+        remedyKey: diseaseKey,
+      };
+    }
+  }
+
   if (mode === "livestock") {
     const diseaseKey = "Livestock___Lumpy_Skin";
     const remedy = REMEDY_DATABASE[diseaseKey];
@@ -68,11 +106,6 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
   }
 
   const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }> = {
-    human: {
-      displayDisease: "Possible Fungal Skin Infection (Tinea / Ringworm)",
-      confidence: 0.88,
-      advice: "• **Medication:** Clotrimazole 1% Cream (Candid / Canesten) — Apply twice daily for 2-3 weeks.\n• **Oral Anti-itch:** Tab. Cetirizine 10mg — 1 tablet at night for itching relief.\n• **Care:** Keep skin clean and dry. Wash towels and clothing in hot water.",
-    },
     pet: {
       displayDisease: "Feline / Canine Mange & Parasitic Dermatitis",
       confidence: 0.86,
@@ -96,10 +129,10 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
 /** Per-domain verified test samples — each AZdoc app only ever shows its own. */
 const SAMPLE_PHOTOS: Record<DomainId, { key: string; labelEn: string; labelUr: string; img: string; remedyKey?: string }[]> = {
   human: [
-    { key: "skin-fungal", labelEn: "Skin Fungal", labelUr: "جلد کا فنگس", img: "/samples/human-skin-fungal.png" },
-    { key: "eye-infection", labelEn: "Eye Infection", labelUr: "آنکھ کی سوزش", img: "/samples/human-eye-infection.png" },
-    { key: "throat", labelEn: "Sore Throat", labelUr: "گلے کی خرابی", img: "/samples/human-throat.png" },
-    { key: "eczema", labelEn: "Skin Eczema", labelUr: "ایکزیما", img: "/samples/human-eczema.png" },
+    { key: "skin-fungal", labelEn: "Skin Fungal", labelUr: "جلد کا فنگس", img: "/samples/human-skin-fungal.png", remedyKey: "Human___Fungal_Ringworm" },
+    { key: "eye-infection", labelEn: "Eye Infection", labelUr: "آنکھ کی سوزش", img: "/samples/human-eye-infection.png", remedyKey: "Human___Eye_Conjunctivitis" },
+    { key: "throat", labelEn: "Sore Throat", labelUr: "گلے کی خرابی", img: "/samples/human-throat.png", remedyKey: "Human___Throat_Tonsillitis" },
+    { key: "eczema", labelEn: "Skin Eczema", labelUr: "ایکزیما", img: "/samples/human-eczema.png", remedyKey: "Human___Eczema" },
   ],
   livestock: [
     { key: "fmd", labelEn: "FMD (Munh Khar)", labelUr: "منہ کھر", img: "https://images.unsplash.com/photo-1546445317-29f4545e9d53?w=200&auto=format&fit=crop&q=60", remedyKey: "Livestock___Foot_and_Mouth" },
