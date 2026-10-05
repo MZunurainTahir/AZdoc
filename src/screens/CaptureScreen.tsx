@@ -232,7 +232,7 @@ export default function CaptureScreen() {
             : aiResult.disease,
         remedy: matched
           ? `${matched.organic}\n\nChemical: ${matched.chemical}`
-          : aiResult.description || "Consult your local agri extension officer for a confirmed diagnosis.",
+          : aiResult.remedy || aiResult.description || "Consult your local agri extension officer for a confirmed diagnosis.",
         confidence: aiResult.confidence,
         remedyKey: aiResult.matchedKey || undefined,
       };

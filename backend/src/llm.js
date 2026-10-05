@@ -10,17 +10,22 @@ const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || "llama-3.2-11b-vision
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_CHAT_MODEL = process.env.OPENROUTER_CHAT_MODEL || "meta-llama/llama-3.3-70b-instruct";
-const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-001";
+const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini";
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 20_000;
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 45_000;
 
 /**
  * Simple API key validation — just checks the key is a non-empty string
  * with a minimum length. We trust that the user provides valid keys.
  */
 function isValidApiKey(key) {
-  return typeof key === "string" && key.trim().length >= 10;
+  if (typeof key !== "string") return false;
+  const k = key.trim();
+  if (k.length < 10) return false;
+  if (k.includes("332064034b") || k.includes("60e778f3725a") || k.includes("4a3c0b6768")) return false;
+  if (k.startsWith("AQ.")) return false;
+  return true;
 }
 
 async function postJson(url, headers, body) {
@@ -46,41 +51,7 @@ async function postJson(url, headers, body) {
 export async function chatCompletion({ messages, imageDataUrl, jsonMode = false }) {
   const errors = [];
 
-  // 1. Try Gemini REST API if key present
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (isValidApiKey(geminiKey)) {
-    try {
-      return await callGeminiApi({
-        apiKey: geminiKey,
-        messages,
-        imageDataUrl,
-        jsonMode,
-      });
-    } catch (err) {
-      errors.push(`gemini: ${err.message}`);
-      console.warn("[LLM] Gemini failed:", err.message);
-    }
-  }
-
-  // 2. Try Groq
-  const groqKey = process.env.GROQ_API_KEY;
-  if (isValidApiKey(groqKey)) {
-    try {
-      return await callOpenAICompatible({
-        baseUrl: GROQ_BASE_URL,
-        apiKey: groqKey,
-        model: imageDataUrl ? GROQ_VISION_MODEL : GROQ_CHAT_MODEL,
-        messages,
-        imageDataUrl,
-        jsonMode,
-      });
-    } catch (err) {
-      errors.push(`groq: ${err.message}`);
-      console.warn("[LLM] Groq failed:", err.message);
-    }
-  }
-
-  // 3. Try OpenRouter
+  // 1. Try OpenRouter first (fastest & most reliable with vision gpt-4o-mini & llama-3.3-70b)
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (isValidApiKey(openrouterKey)) {
     try {
@@ -102,10 +73,45 @@ export async function chatCompletion({ messages, imageDataUrl, jsonMode = false 
     }
   }
 
+  // 2. Try Gemini REST API if valid key present
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (isValidApiKey(geminiKey)) {
+    try {
+      return await callGeminiApi({
+        apiKey: geminiKey,
+        messages,
+        imageDataUrl,
+        jsonMode,
+      });
+    } catch (err) {
+      errors.push(`gemini: ${err.message}`);
+      console.warn("[LLM] Gemini failed:", err.message);
+    }
+  }
+
+  // 3. Try Groq
+  const groqKey = process.env.GROQ_API_KEY;
+  if (isValidApiKey(groqKey)) {
+    try {
+      return await callOpenAICompatible({
+        baseUrl: GROQ_BASE_URL,
+        apiKey: groqKey,
+        model: imageDataUrl ? GROQ_VISION_MODEL : GROQ_CHAT_MODEL,
+        messages,
+        imageDataUrl,
+        jsonMode,
+      });
+    } catch (err) {
+      errors.push(`groq: ${err.message}`);
+      console.warn("[LLM] Groq failed:", err.message);
+    }
+  }
+
   throw new Error(
     errors.length ? `All providers failed — ${errors.join(" | ")}` : "No active LLM key configured"
   );
 }
+
 
 async function callGeminiApi({ apiKey, messages, imageDataUrl, jsonMode }) {
   const systemMsg = messages.find((m) => m.role === "system")?.content || "";

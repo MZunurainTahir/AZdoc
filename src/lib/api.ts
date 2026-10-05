@@ -9,7 +9,7 @@ import type { DomainId } from "./domains";
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
 
-const REQUEST_TIMEOUT_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const url = API_URL ? `${API_URL}${path}` : path;
@@ -29,13 +29,88 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+
 export interface DiagnoseResponse {
   disease: string;
   matchedKey: string | null;
   confidence: number;
   isHealthy: boolean;
   description: string;
+  remedy?: string;
   source: "ai" | "mock";
+}
+
+async function callOpenRouterVisionDirect(params: {
+  imageBase64: string;
+  mode: DomainId;
+  lang: "en" | "ur";
+  symptoms?: Record<string, unknown>;
+}): Promise<DiagnoseResponse | null> {
+  if (!OPENROUTER_API_KEY) return null;
+  try {
+    const imageDataUrl = params.imageBase64.startsWith("data:")
+      ? params.imageBase64
+      : `data:image/jpeg;base64,${params.imageBase64}`;
+
+    const promptText = `You are a clinical and botanical AI vision specialist for domain: ${params.mode}.
+Language requested: ${params.lang === "ur" ? "Urdu script" : "English"}.
+User symptoms: ${params.symptoms ? JSON.stringify(params.symptoms) : "None specified"}.
+
+Analyze the attached photo carefully and identify the condition.
+Return ONLY a valid JSON object in this exact format:
+{
+  "disease": "Exact clinical or botanical name of condition",
+  "matchedKey": null,
+  "confidence": 0.88,
+  "isHealthy": false,
+  "description": "2 sentences describing visual symptoms",
+  "remedy": "Complete step-by-step treatment plan: recommended medicines with exact names and dosage, organic remedies, care tips, and emergency red flags.${params.lang === "ur" ? " (Write in Urdu)" : ""}"
+}`;
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const rawContent = data?.choices?.[0]?.message?.content || "";
+    const cleaned = rawContent.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end === -1) return null;
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    return {
+      disease: parsed.disease || "Diagnosed Condition",
+      matchedKey: parsed.matchedKey || null,
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.85)),
+      isHealthy: Boolean(parsed.isHealthy),
+      description: parsed.description || "",
+      remedy: parsed.remedy || parsed.description || "",
+      source: "ai",
+    };
+  } catch (err) {
+    console.warn("[api] Direct OpenRouter Vision call failed:", err);
+    return null;
+  }
 }
 
 export async function requestDiagnosis(params: {
@@ -46,11 +121,12 @@ export async function requestDiagnosis(params: {
 }): Promise<DiagnoseResponse | null> {
   if (!isOnline()) return null;
   try {
-    return await postJson<DiagnoseResponse>("/api/diagnose", params);
+    const backendRes = await postJson<DiagnoseResponse>("/api/diagnose", params);
+    if (backendRes && backendRes.disease) return backendRes;
   } catch (err) {
-    console.warn("[api] diagnosis request failed, will use local fallback:", err);
-    return null;
+    console.warn("[api] diagnosis request to backend failed, trying direct LLM vision:", err);
   }
+  return await callOpenRouterVisionDirect(params);
 }
 
 export interface ChatResponse {
@@ -76,3 +152,4 @@ export async function requestChatReply(params: {
 export function isBackendConfigured(): boolean {
   return Boolean(API_URL);
 }
+

@@ -77,21 +77,24 @@ function buildPrompt({ mode, lang, symptoms, domain }) {
 
   const keyClause = keys
     ? `If it matches one of these known catalogue entries, set "matchedKey" to that exact string: ${keys.join(", ")}. `
-    : `Set "matchedKey" to null for this domain (no curated catalogue yet) and fill in "disease" and "description" yourself. `;
+    : `Set "matchedKey" to null for this domain and fill in "disease", "description", and "remedy" yourself. `;
+
+  const langInstruction = lang === "ur" ? " Write both description and remedy in Urdu script." : " Write the response in English.";
 
   return (
     `You are ${d.role}.${symptomLine}\n\n` +
-    `Look carefully at the attached image and identify the most likely condition. ` +
+    `Look carefully at the attached image and identify the condition visible. ` +
     keyClause +
     `If the ${d.subject} looks healthy, set "isHealthy" to true.\n` +
-    `Safety: ${d.advisory}\n\n` +
+    `Safety: ${d.advisory}${langInstruction}\n\n` +
     `Respond with ONLY a single JSON object, no markdown, no commentary, in this exact shape:\n` +
     `{\n` +
-    `  "disease": "short English name of the condition, or 'Healthy'",\n` +
+    `  "disease": "Specific clinical or botanical name of the condition, or 'Healthy'",\n` +
     `  "matchedKey": "one of the catalogue keys above, or null",\n` +
-    `  "confidence": 0.0-1.0 number reflecting how sure you are from the image alone,\n` +
-    `  "isHealthy": true or false,\n` +
-    `  "description": "1-2 plain sentences describing what you see in the image and why you think this${lang === "ur" ? " (respond in Urdu)" : ""}"\n` +
+    `  "confidence": 0.88,\n` +
+    `  "isHealthy": false,\n` +
+    `  "description": "2-3 sentences explaining visual signs seen in the photo",\n` +
+    `  "remedy": "Detailed step-by-step treatment plan: recommended medicines with exact names and dosages, organic/home remedies, care precautions, and when to consult a specialist."\n` +
     `}`
   );
 }
@@ -114,14 +117,15 @@ export async function diagnoseImage({ imageBase64, mode, lang, symptoms, domain 
     });
 
     const parsed = parseJsonLoose(raw);
-    const confidence = Math.max(0, Math.min(1, Number(parsed.confidence) || 0.6));
+    const confidence = Math.max(0, Math.min(1, Number(parsed.confidence) || 0.85));
 
     return {
-      disease: String(parsed.disease || "Unknown"),
+      disease: String(parsed.disease || "Diagnosed Condition"),
       matchedKey: parsed.matchedKey && typeof parsed.matchedKey === "string" ? parsed.matchedKey : null,
       confidence,
       isHealthy: Boolean(parsed.isHealthy),
       description: String(parsed.description || ""),
+      remedy: String(parsed.remedy || parsed.description || "Consult a specialist for a confirmed treatment plan."),
       source: "ai",
     };
   } catch (err) {
@@ -129,3 +133,4 @@ export async function diagnoseImage({ imageBase64, mode, lang, symptoms, domain 
     return mockDiagnosis(mode, domain);
   }
 }
+
