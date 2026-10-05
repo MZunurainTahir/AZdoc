@@ -40,16 +40,22 @@ export default async function handler(req, res) {
 Language requested: ${lang === "ur" ? "Urdu script" : "English"}.
 User reported symptoms: ${symptoms ? JSON.stringify(symptoms) : "None"}.
 
-Look closely at the photo and identify the condition.
+STRICT MULTI-MODAL TAXONOMY & CONTEXT RULES:
+1. Identify BOTH host crop/plant/animal (e.g. Tomato vs Potato vs Wheat vs Cattle vs Dog) AND condition (e.g. Late Blight, Early Blight, Healthy).
+2. DO NOT assign potato tuber harvesting notes to Tomatoes! If the image shows Tomatoes or tomato fruits, output "Tomato Late Blight" or "Tomato Early Blight" with foliage/vine advice.
+3. If the image shows Potato tubers or potato foliage, output "Potato Late Blight" with tuber harvesting notes.
+4. Keep treatment advice strictly tailored to the identified crop.
+
 Return ONLY a valid JSON object, with no markdown code blocks, in this exact format:
 {
-  "disease": "Specific clinical or botanical name of condition",
+  "disease": "Exact clinical or botanical name (e.g. 'Tomato Late Blight' or 'Potato Late Blight')",
   "matchedKey": null,
-  "confidence": 0.88,
+  "confidence": 0.92,
   "isHealthy": false,
   "description": "2 sentences describing visual signs seen in the photo",
-  "remedy": "Detailed step-by-step treatment plan with exact medicine names, dosage, organic remedies, care tips, and precautions.${lang === "ur" ? " (Write in Urdu)" : ""}"
+  "remedy": "Crop-tailored step-by-step treatment plan with exact medicine names, dosage, organic remedies, care tips, and precautions.${lang === "ur" ? " (Write in Urdu)" : ""}"
 }`;
+
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",

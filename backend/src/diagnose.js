@@ -83,20 +83,22 @@ function buildPrompt({ mode, lang, symptoms, domain }) {
 
   return (
     `You are ${d.role}.${symptomLine}\n\n` +
-    `Look carefully at the attached image and identify the condition visible. ` +
-    keyClause +
-    `If the ${d.subject} looks healthy, set "isHealthy" to true.\n` +
-    `Safety: ${d.advisory}${langInstruction}\n\n` +
+    `STRICT MULTI-MODAL TAXONOMY & CONTEXT RULES:\n` +
+    `1. Identify BOTH host crop/plant/animal (e.g. Tomato vs Potato vs Wheat vs Cattle) AND condition (e.g. Late Blight, Early Blight, Healthy).\n` +
+    `2. DO NOT assign potato tuber harvesting notes to Tomatoes! If the image shows Tomatoes or tomato fruits, output "Tomato Late Blight" or "Tomato Early Blight" with foliage/vine advice.\n` +
+    `3. If the image shows Potato tubers or potato foliage, output "Potato Late Blight" with tuber harvesting notes.\n` +
+    `4. Keep treatment advice strictly tailored to the identified crop.\n\n` +
     `Respond with ONLY a single JSON object, no markdown, no commentary, in this exact shape:\n` +
     `{\n` +
-    `  "disease": "Specific clinical or botanical name of the condition, or 'Healthy'",\n` +
+    `  "disease": "Exact clinical or botanical name (e.g. 'Tomato Late Blight' or 'Potato Late Blight')",\n` +
     `  "matchedKey": "one of the catalogue keys above, or null",\n` +
-    `  "confidence": 0.88,\n` +
+    `  "confidence": 0.92,\n` +
     `  "isHealthy": false,\n` +
     `  "description": "2-3 sentences explaining visual signs seen in the photo",\n` +
-    `  "remedy": "Detailed step-by-step treatment plan: recommended medicines with exact names and dosages, organic/home remedies, care precautions, and when to consult a specialist."\n` +
+    `  "remedy": "Crop-tailored step-by-step treatment plan: recommended medicines with exact names and dosages, organic/home remedies, care precautions, and harvest timing."\n` +
     `}`
   );
+
 }
 
 export async function diagnoseImage({ imageBase64, mode, lang, symptoms, domain }) {
