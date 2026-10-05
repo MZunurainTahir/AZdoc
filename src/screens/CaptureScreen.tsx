@@ -103,6 +103,31 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
     };
   }
 
+  if (mode === "plant") {
+    const plantKeys = [
+      "Plant___Aphid_Infestation",
+      "Plant___Leaf_Spot",
+      "Plant___Powdery_Mildew",
+      "Plant___Spider_Mites",
+    ];
+    let diseaseKey = plantKeys[imgHash % plantKeys.length];
+
+    if (rawStr.includes("aphid") || rawStr.includes("greenfly") || rawStr.includes("bug")) diseaseKey = "Plant___Aphid_Infestation";
+    else if (rawStr.includes("spot") || rawStr.includes("cercospora") || rawStr.includes("alternaria")) diseaseKey = "Plant___Leaf_Spot";
+    else if (rawStr.includes("mildew") || rawStr.includes("flour") || rawStr.includes("white")) diseaseKey = "Plant___Powdery_Mildew";
+    else if (rawStr.includes("mite") || rawStr.includes("web") || rawStr.includes("spider")) diseaseKey = "Plant___Spider_Mites";
+
+    const remedy = REMEDY_DATABASE[diseaseKey];
+    return {
+      disease: remedy ? remedy.name : "Fungal Leaf Spot (Cercospora / Alternaria)",
+      remedy: remedy
+        ? `• **Control Plan:** ${remedy.chemical}\n\n• **Organic & Bio Control:** ${remedy.organic}\n\n• **Dosage:** ${remedy.dosage}`
+        : "Spray Neem oil solution or approved treatment.",
+      confidence: remedy ? remedy.confidence : 0.92,
+      remedyKey: diseaseKey,
+    };
+  }
+
   if (mode === "livestock") {
     const livestockKeys = [
       "Livestock___Lumpy_Skin",
@@ -120,19 +145,12 @@ function mockDiagnosis(mode: DomainId, imageBase64?: string | null) {
     };
   }
 
-  const offlinePool: Record<string, { displayDisease: string; confidence: number; advice: string }> = {
-    plant: {
-      displayDisease: "Fungal Leaf Spot (Cercospora / Alternaria)",
-      confidence: 0.89,
-      advice: "• **Chemical Spray:** Spray Copper Oxychloride 50% WP (2.5g per liter of water) or Mancozeb.\n• **Organic Treatment:** Spray Neem oil solution (5ml per liter) every 7 days.",
-    },
-  };
-
-  const picked = offlinePool[mode] || offlinePool.plant;
+  const fallbackKey = "Plant___Leaf_Spot";
+  const remedy = REMEDY_DATABASE[fallbackKey];
   return {
-    disease: picked.displayDisease,
-    remedy: picked.advice,
-    confidence: picked.confidence,
+    disease: remedy ? remedy.name : "Fungal Leaf Spot",
+    remedy: remedy ? `${remedy.organic}\n\nChemical: ${remedy.chemical}` : "Spray Neem oil solution.",
+    confidence: 0.89,
   };
 }
 
@@ -155,8 +173,8 @@ const SAMPLE_PHOTOS: Record<DomainId, { key: string; labelEn: string; labelUr: s
     { key: "hotspot", labelEn: "Hotspot / Pyoderma", labelUr: "ہاٹ اسپاٹ / جلدی زخم", img: "/samples/pet-hotspot.png", remedyKey: "Pet___Dog_Hotspot_Pyoderma" },
   ],
   plant: [
-    { key: "leaf-spot", labelEn: "Leaf Spot", labelUr: "پتوں کے داغ", img: "/samples/plant-leaf-spot.png" },
-    { key: "aphids", labelEn: "Aphid Attack", labelUr: "مہنگ کا حملہ", img: "/samples/plant-aphids.png" },
+    { key: "aphids", labelEn: "Aphid Attack", labelUr: "مہنگ کا حملہ", img: "/samples/plant-aphids.png", remedyKey: "Plant___Aphid_Infestation" },
+    { key: "leaf-spot", labelEn: "Leaf Spot", labelUr: "پتوں کے داغ", img: "/samples/plant-leaf-spot.png", remedyKey: "Plant___Leaf_Spot" },
   ],
   crop: [
     { key: "tomato", labelEn: "Tomato Blight", labelUr: "ٹماٹر جھلساؤ", img: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=200&auto=format&fit=crop&q=60", remedyKey: "Tomato___Late_blight" },
