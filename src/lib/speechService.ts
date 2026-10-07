@@ -1,8 +1,10 @@
 /**
- * AZdoc Speech & Multilingual Intelligence Service — v3.0
- * Gemini-like continuous real-time voice input with auto language detection.
- * Powered by: Web Speech API (live interim) → Groq Whisper (final) → ElevenLabs TTS
- * Supports: Urdu, English, Punjabi, Sindhi, Pashto, Balochi, Spanish + ANY language via Whisper
+ * AZdoc Speech & Multilingual Intelligence Service — v4.0
+ * 
+ * KEY FIX: Web Speech API (browser) does NOT support Urdu, Punjabi, Sindhi,
+ * Balochi properly on most browsers — it terminates immediately.
+ * Solution: For all RTL/Urdu-script languages → use ONLY Groq Whisper via MediaRecorder.
+ * For English/Spanish → use Web Speech API (interim) + Groq Whisper (final).
  */
 
 export type SupportedLanguage = "ur" | "en" | "pa" | "sd" | "ps" | "bal" | "es";
@@ -15,7 +17,8 @@ export interface LanguageInfo {
   locale: string;
   greeting: string;
   voiceSample: string;
-  whisperCode: string; // ISO 639-1 for Whisper
+  whisperCode: string;
+  webSpeechSupported: boolean; // Whether Web Speech API works reliably for this lang
 }
 
 export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
@@ -26,6 +29,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🇵🇰",
     locale: "ur-PK",
     whisperCode: "ur",
+    webSpeechSupported: false, // ❌ Web Speech kills immediately for Urdu
     greeting: "السلام علیکم! میں آپ کا AI ڈاکٹر ہوں۔ آپ کس بیماری یا علامت کے بارے میں رہنمائی چاہتے ہیں؟",
     voiceSample: "مجھے کل سے سر درد اور بخار ہے",
   },
@@ -36,6 +40,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🇬🇧",
     locale: "en-US",
     whisperCode: "en",
+    webSpeechSupported: true, // ✅ Works great
     greeting: "Assalam-o-Alaikum! I am your AZdoc AI Medical Consultant. How can I help with your health today?",
     voiceSample: "I have a headache and mild fever since yesterday",
   },
@@ -45,7 +50,8 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     nativeName: "پنجابی",
     flag: "🌾",
     locale: "pa-PK",
-    whisperCode: "ur", // Groq uses ur for Punjabi (Arabic script)
+    whisperCode: "ur",
+    webSpeechSupported: false, // ❌ No browser support for pa-PK
     greeting: "ست سری اکال / السلام علیکم! میں تہاڈا AI ڈاکٹر واں۔",
     voiceSample: "مینوں کل توں بخار تے پنڈے چ پیڑ اے",
   },
@@ -56,6 +62,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🏺",
     locale: "sd-PK",
     whisperCode: "ur",
+    webSpeechSupported: false,
     greeting: "اسلام عليڪم! مان اوھان جو AI ڊاڪٽر آھيان۔",
     voiceSample: "مون کي ڪالھ کان تپ ۽ مٿي جو سور آھي",
   },
@@ -66,6 +73,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🏔️",
     locale: "ps-AF",
     whisperCode: "ps",
+    webSpeechSupported: false,
     greeting: "سلامونه! زه ستاسو AI ډاکټر یم۔",
     voiceSample: "ما ته له پرون راهیسې تبه او سر درد دی",
   },
@@ -76,6 +84,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🌴",
     locale: "bal-PK",
     whisperCode: "ur",
+    webSpeechSupported: false,
     greeting: "سلام! من شمئے AI ڈاکٹر آں۔",
     voiceSample: "منی سرا درد انت ءُ تب انت",
   },
@@ -86,6 +95,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     flag: "🇪🇸",
     locale: "es-ES",
     whisperCode: "es",
+    webSpeechSupported: true, // ✅ Generally works
     greeting: "¡Hola! Soy tu médico de IA de AZdoc.",
     voiceSample: "Tengo fiebre y dolor de cabeza desde ayer",
   },
@@ -115,9 +125,28 @@ export interface VoiceRecorder {
 }
 
 /**
- * Starts Gemini-like continuous voice recording:
- * 1. Uses Web Speech API for live interim transcripts (real-time display)
- * 2. Falls back to Groq Whisper for final high-accuracy multilingual transcription
+ * Gets the best supported MIME type for audio recording
+ */
+function getBestMimeType(): string {
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+    "",
+  ];
+  for (const type of types) {
+    if (!type || MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return "";
+}
+
+/**
+ * Starts voice recording with the best strategy for the selected language:
+ * - For Urdu/Punjabi/Sindhi/Pashto/Balochi: ONLY MediaRecorder → Groq Whisper
+ *   (Web Speech API fails immediately for these languages in all major browsers)
+ * - For English/Spanish: Web Speech API (live interim) + Groq Whisper (final)
  */
 export async function startVoiceRecording(
   options: VoiceRecordingOptions
@@ -131,19 +160,70 @@ export async function startVoiceRecording(
   let audioChunks: Blob[] = [];
   let stream: MediaStream | null = null;
   let interimText = "";
+  let isTranscribing = false;
 
+  // ── Strategy A: RTL/Urdu-script languages → MediaRecorder ONLY ───────────
+  // Web Speech API does NOT support Urdu/Punjabi/Sindhi/Pashto/Balochi reliably
+  // It starts and immediately fires 'end' event when encountering RTL text
+  if (!langInfo.webSpeechSupported) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getBestMimeType();
+      const recorderOptions = mimeType ? { mimeType } : undefined;
+      mediaRecorder = new MediaRecorder(stream, recorderOptions);
+      audioChunks = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+      
+      // Collect data every 2 seconds for potential live preview
+      mediaRecorder.start(2000);
+      onListeningStart?.();
+
+      return {
+        stop: async () => {
+          if (stopped) return;
+          stopped = true;
+          
+          if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
+          // Wait for remaining audio data
+          await new Promise<void>((res) => setTimeout(res, 600));
+          stream?.getTracks().forEach((t) => t.stop());
+          onListeningEnd?.();
+
+          if (audioChunks.length > 0 && GROQ_API_KEY) {
+            isTranscribing = true;
+            const actualMime = mediaRecorder?.mimeType || "audio/webm";
+            const audioBlob = new Blob(audioChunks, { type: actualMime });
+            const text = await transcribeWithGroqWhisper(audioBlob, lang, actualMime);
+            isTranscribing = false;
+            if (text && text.trim().length > 1) {
+              onFinalTranscript?.(text.trim());
+            } else {
+              onError?.("آواز نہیں پکڑی جا سکی۔ دوبارہ کوشش کریں۔ (Voice not captured, please try again)");
+            }
+          }
+        },
+      };
+    } catch (err) {
+      console.error("[Voice/RTL] Microphone error:", err);
+      onError?.("مائیکروفون تک رسائی نہیں۔ براہ کرم براؤزر میں مائیکروفون اجازت دیں۔");
+      return { stop: () => {} };
+    }
+  }
+
+  // ── Strategy B: Web Speech API (EN/ES) + Groq Whisper (final) ──────────
   const SpeechRecognitionCtor =
     typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
-  // ── Strategy 1: Web Speech API (live interim) + Groq Whisper (final) ──────
   if (SpeechRecognitionCtor) {
     try {
       recognition = new SpeechRecognitionCtor();
-      // Use 'ur-PK' for all Urdu-script languages (Punjabi, Sindhi, Balochi)
-      const recognitionLocale =
-        lang === "pa" || lang === "sd" || lang === "bal" ? "ur-PK" : langInfo.locale;
-      recognition.lang = recognitionLocale;
+      recognition.lang = langInfo.locale;
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
@@ -154,11 +234,11 @@ export async function startVoiceRecording(
 
       recognition.onresult = (e: any) => {
         let interim = "";
-        let finalText = "";
+        let finalPart = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const transcript = e.results[i][0].transcript;
           if (e.results[i].isFinal) {
-            finalText += transcript + " ";
+            finalPart += transcript + " ";
           } else {
             interim += transcript;
           }
@@ -167,20 +247,22 @@ export async function startVoiceRecording(
           interimText = interim;
           onInterimTranscript?.(interim);
         }
-        if (finalText.trim()) {
-          onInterimTranscript?.(finalText.trim());
+        if (finalPart.trim()) {
+          interimText = finalPart.trim();
+          onInterimTranscript?.(finalPart.trim());
         }
       };
 
       recognition.onerror = (e: any) => {
         if (e.error === "no-speech" || e.error === "aborted") return;
         console.warn("[SpeechAPI] Error:", e.error);
-        // Don't call onError for common transient errors
       };
 
       recognition.onend = () => {
-        if (!stopped) return;
-        onListeningEnd?.();
+        if (!stopped) {
+          // Restart for continuous listening
+          try { recognition?.start(); } catch { /* ok, already stopped */ }
+        }
       };
 
       recognition.start();
@@ -188,24 +270,26 @@ export async function startVoiceRecording(
       // Also start MediaRecorder in parallel for Groq Whisper final pass
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        const mimeType = getBestMimeType();
+        const recorderOptions = mimeType ? { mimeType } : undefined;
+        mediaRecorder = new MediaRecorder(stream, recorderOptions);
         audioChunks = [];
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunks.push(e.data);
         };
         mediaRecorder.start(250);
       } catch {
-        // MediaRecorder optional; Web Speech alone is fine
+        // MediaRecorder optional; Web Speech alone is fine for EN/ES
       }
 
       return {
         stop: async () => {
+          if (stopped) return;
           stopped = true;
           try { recognition?.stop(); } catch { /* ok */ }
 
           if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
-            // Wait for data
             await new Promise<void>((res) => setTimeout(res, 500));
           }
           stream?.getTracks().forEach((t) => t.stop());
@@ -213,8 +297,9 @@ export async function startVoiceRecording(
 
           // Final transcription via Groq Whisper if audio available
           if (audioChunks.length > 0 && GROQ_API_KEY) {
-            const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-            const whisperText = await transcribeWithGroqWhisper(audioBlob, lang);
+            const actualMime = mediaRecorder?.mimeType || "audio/webm";
+            const audioBlob = new Blob(audioChunks, { type: actualMime });
+            const whisperText = await transcribeWithGroqWhisper(audioBlob, lang, actualMime);
             if (whisperText && whisperText.length > 2) {
               onFinalTranscript?.(whisperText);
               return;
@@ -227,14 +312,16 @@ export async function startVoiceRecording(
         },
       };
     } catch (err) {
-      console.warn("[Voice] Web Speech init failed, falling back to Groq-only:", err);
+      console.warn("[Voice] Web Speech init failed, falling back to MediaRecorder:", err);
     }
   }
 
-  // ── Strategy 2: MediaRecorder → Groq Whisper only (no Web Speech) ─────────
+  // ── Strategy C: Pure MediaRecorder fallback ────────────────────────────────
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
+    const mimeType = getBestMimeType();
+    const recorderOptions = mimeType ? { mimeType } : undefined;
+    mediaRecorder = new MediaRecorder(stream, recorderOptions);
     audioChunks = [];
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunks.push(e.data);
@@ -244,6 +331,7 @@ export async function startVoiceRecording(
 
     return {
       stop: async () => {
+        if (stopped) return;
         stopped = true;
         mediaRecorder?.stop();
         await new Promise<void>((res) => setTimeout(res, 600));
@@ -251,8 +339,9 @@ export async function startVoiceRecording(
         onListeningEnd?.();
 
         if (audioChunks.length > 0) {
-          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-          const text = await transcribeWithGroqWhisper(audioBlob, lang);
+          const actualMime = mediaRecorder?.mimeType || "audio/webm";
+          const audioBlob = new Blob(audioChunks, { type: actualMime });
+          const text = await transcribeWithGroqWhisper(audioBlob, lang, actualMime);
           if (text) onFinalTranscript?.(text);
         }
       },
@@ -271,12 +360,13 @@ export async function transcribeAudioBlob(
   audioBlob: Blob,
   targetLang: SupportedLanguage
 ): Promise<string> {
-  return transcribeWithGroqWhisper(audioBlob, targetLang);
+  return transcribeWithGroqWhisper(audioBlob, targetLang, audioBlob.type);
 }
 
 async function transcribeWithGroqWhisper(
   audioBlob: Blob,
-  lang: SupportedLanguage
+  lang: SupportedLanguage,
+  mimeType?: string
 ): Promise<string> {
   if (!GROQ_API_KEY) return "";
 
@@ -284,18 +374,33 @@ async function transcribeWithGroqWhisper(
 
   try {
     const formData = new FormData();
-    // Determine optimal mime type
-    const ext = audioBlob.type.includes("webm") ? "webm" : audioBlob.type.includes("ogg") ? "ogg" : "wav";
-    formData.append("file", audioBlob, `audio.${ext}`);
+    
+    // Determine file extension from mime type
+    const actualMime = mimeType || audioBlob.type || "audio/webm";
+    let ext = "webm";
+    if (actualMime.includes("ogg")) ext = "ogg";
+    else if (actualMime.includes("mp4") || actualMime.includes("m4a")) ext = "mp4";
+    else if (actualMime.includes("wav")) ext = "wav";
+    else if (actualMime.includes("mp3")) ext = "mp3";
+
+    formData.append("file", audioBlob, `recording.${ext}`);
     formData.append("model", "whisper-large-v3-turbo");
-    // Let Whisper auto-detect language for best accuracy across all languages
-    // Only hint the language for known supported ones
-    if (["en", "ur", "ps", "es"].includes(langInfo.whisperCode)) {
+    
+    // For Urdu and related languages, explicitly hint language for better accuracy
+    if (langInfo.whisperCode && ["ur", "ps", "es", "en"].includes(langInfo.whisperCode)) {
       formData.append("language", langInfo.whisperCode);
     }
+    
+    // Add a medical context prompt for better transcription accuracy
+    const promptByLang: Partial<Record<SupportedLanguage, string>> = {
+      ur: "طبی مشاورت۔ مریض اردو میں بیماری، دوائی، یا علامات کے بارے میں بات کر رہے ہیں۔",
+      pa: "طبی مشاورت۔ مریض پنجابی یا اردو میں بات کر رہے ہیں۔",
+      en: "Medical consultation. Patient describing symptoms, medications, or health concerns.",
+      es: "Consulta médica. El paciente describe síntomas o preguntas de salud.",
+    };
     formData.append(
       "prompt",
-      `Medical voice consultation. The user may speak in Urdu, Punjabi, Sindhi, Pashto, Balochi, English or any other language. Transcribe exactly what is said including medical terms.`
+      promptByLang[lang] || "Medical consultation in any language. Transcribe accurately."
     );
     formData.append("response_format", "json");
     formData.append("temperature", "0");
@@ -341,7 +446,7 @@ export async function playTextToSpeech(
     .slice(0, 1200);
 
   // 1. Try ElevenLabs API (best quality, multilingual)
-  if (ELEVENLABS_API_KEY && ELEVENLABS_API_KEY.length > 20 && !ELEVENLABS_API_KEY.startsWith("sk_209b")) {
+  if (ELEVENLABS_API_KEY && ELEVENLABS_API_KEY.length > 20) {
     try {
       const res = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,

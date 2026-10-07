@@ -29,6 +29,7 @@ import {
   Camera, CameraOff, Image as ImageIcon, Upload,
   AlertCircle, RotateCcw, ChevronDown, Wand2,
 } from "lucide-react";
+import { MarkdownRenderer } from "../components/MarkdownRenderer";
 
 interface Message {
   role: "user" | "assistant";
@@ -577,12 +578,16 @@ export default function AssistantScreen() {
             {msg.imageUrl && (
               <img src={msg.imageUrl} className="max-w-[70%] rounded-2xl mb-1.5 border border-border shadow-md" alt="user photo" />
             )}
-            <div className={`max-w-[92%] rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${
+            <div className={`max-w-[92%] rounded-3xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
               msg.role === "user"
-                ? "bg-gradient-to-br from-primary via-blue-500 to-indigo-600 text-white rounded-br-md"
+                ? "bg-gradient-to-br from-primary via-blue-500 to-indigo-600 text-white rounded-br-md whitespace-pre-line"
                 : "bg-bg-elevated border border-border text-text-primary rounded-bl-md"
             }`}>
-              {msg.content}
+              {msg.role === "assistant" ? (
+                <MarkdownRenderer content={msg.content} />
+              ) : (
+                msg.content
+              )}
 
               {msg.prescription && (
                 <div className="mt-3 pt-2.5 border-t border-border/60">
