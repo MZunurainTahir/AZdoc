@@ -11,7 +11,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { useAuth } from "../context/AuthContext";
 import { useDomain } from "../context/DomainContext";
 import { generateLocalId } from "../lib/db";
 import { askDeepSeekDoctor } from "../lib/deepseekClient";
@@ -26,7 +25,7 @@ import {
 import {
   Send, Mic, MicOff, Volume2, VolumeX,
   Languages, FileText, Sparkles, X,
-  Camera, CameraOff, Image as ImageIcon, Upload,
+  Camera, Upload,
   AlertCircle, RotateCcw, ChevronDown, Wand2,
 } from "lucide-react";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
@@ -195,7 +194,6 @@ function extractPrescription(aiReply: string, domainId: string, domainName: stri
 
 export default function AssistantScreen() {
   const { lang: appLang } = useLanguage();
-  const { user } = useAuth();
   const { domainId, domain } = useDomain();
   const navigate = useNavigate();
 

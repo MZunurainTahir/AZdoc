@@ -15,7 +15,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     const elements: React.ReactNode[] = [];
     let inTable = false;
     let tableRows: string[][] = [];
-    let isHeaderRow = true;
     let listItems: string[] = [];
     let isNumberedList = false;
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useDomain } from "../context/DomainContext";
-import { DOMAINS, asDomainId, getDomain, type DomainId } from "../lib/domains";
+import { asDomainId, getDomain, type DomainId } from "../lib/domains";
 import { supabase, Diagnosis, RecoveryCase } from "../lib/supabase";
 import { db, isOnline } from "../lib/db";
 import { Trash2, ChevronRight, CameraOff, Search, CheckCircle, Clock, AlertTriangle, Sprout, WifiOff, Camera } from "lucide-react";
@@ -17,7 +17,7 @@ export default function HistoryScreen() {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [activeCases, setActiveCases] = useState<(RecoveryCase & { diagnosis?: Diagnosis })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<DomainId>(domain.id);
+  const [, setFilter] = useState<DomainId>(domain.id);
   const [showActiveCases] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [usingCached, setUsingCached] = useState(false);

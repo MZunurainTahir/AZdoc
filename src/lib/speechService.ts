@@ -160,7 +160,6 @@ export async function startVoiceRecording(
   let audioChunks: Blob[] = [];
   let stream: MediaStream | null = null;
   let interimText = "";
-  let isTranscribing = false;
 
   // ── Strategy A: RTL/Urdu-script languages → MediaRecorder ONLY ───────────
   // Web Speech API does NOT support Urdu/Punjabi/Sindhi/Pashto/Balochi reliably
@@ -195,11 +194,9 @@ export async function startVoiceRecording(
           onListeningEnd?.();
 
           if (audioChunks.length > 0 && GROQ_API_KEY) {
-            isTranscribing = true;
             const actualMime = mediaRecorder?.mimeType || "audio/webm";
             const audioBlob = new Blob(audioChunks, { type: actualMime });
             const text = await transcribeWithGroqWhisper(audioBlob, lang, actualMime);
-            isTranscribing = false;
             if (text && text.trim().length > 1) {
               onFinalTranscript?.(text.trim());
             } else {
