@@ -152,31 +152,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsDemoUser(false);
     const normalizedEmail = email.trim().toLowerCase();
 
-    try {
-      // Try backend signup first if available
-      const res = await fetch("/api/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password,
-          fullName,
-        }),
-      });
-
-      if (res.ok) {
-        return await signIn(normalizedEmail, password);
-      }
-    } catch {
-      // Backend api endpoint not mounted in static SPA, fall through to client Supabase signup
-    }
-
-    // Direct Supabase client signup fallback
+    // Use Supabase client signup with email confirmation
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
         data: { full_name: fullName },
+        // Redirect URL after email confirmation click
+        emailRedirectTo: `${window.location.origin}/`,
       },
     });
 
@@ -184,15 +167,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error };
     }
 
-    // Auto sign in or show notification
+    // If session exists immediately (email confirmation disabled), auto login
     if (data.session) {
       setUser(data.session.user);
-    } else {
-      // Also attempt sign in directly if email confirmation disabled in project
-      const signInRes = await signIn(normalizedEmail, password);
-      if (!signInRes.error) return signInRes;
+      setProfile(null);
+      await fetchProfile(data.session.user.id);
+      return { error: null };
     }
 
+    // Email confirmation required — user must click the link sent to their email
+    // Return null error so AuthScreen shows the success "check your email" message
     return { error: null };
   };
 

@@ -1,9 +1,9 @@
 /**
- * AZdoc AI Doctor — Complete Multilingual Health Assistant
+ * AZdoc AI Doctor — Complete Multilingual Health Assistant v3.0
  * Features:
- *  • Camera photo capture + AI image analysis (DeepSeek)
- *  • 7-language voice input (Urdu, English, Punjabi, Sindhi, Pashto, Balochi, Spanish)
- *  • DeepSeek LLM for accurate, detailed medical responses
+ *  • Gemini-like live voice input (real-time interim transcripts in any language)
+ *  • Camera photo capture + AI image analysis (Gemini 2.0 Flash Vision)
+ *  • DeepSeek + Groq + OpenRouter multi-model AI with 200+ word detailed responses
  *  • ElevenLabs TTS audio playback
  *  • Domain-specific AI personas (Human, Livestock, Pet, Plant, Crop)
  *  • Prescription slips & pharmacy linking
@@ -20,13 +20,14 @@ import {
   SupportedLanguage,
   playTextToSpeech,
   stopTextToSpeech,
-  transcribeAudioBlob,
+  startVoiceRecording,
+  type VoiceRecorder,
 } from "../lib/speechService";
 import {
   Send, Mic, MicOff, Volume2, VolumeX,
   Languages, FileText, Sparkles, X,
   Camera, CameraOff, Image as ImageIcon, Upload,
-  AlertCircle, RotateCcw, ChevronDown,
+  AlertCircle, RotateCcw, ChevronDown, Wand2,
 } from "lucide-react";
 
 interface Message {
@@ -54,13 +55,13 @@ const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: strin
       { label: "🫁 Cough & Phlegm", query: "What is the best medicine and home remedy for chest cough and phlegm?" },
     ],
     livestock: [
-      { label: "🐄 Cow High Fever", query: "My cow has high fever and is not feeding. Please provide diagnosis and veterinary treatment." },
+      { label: "🐄 Cow High Fever", query: "My cow has high fever and is not feeding. Please provide diagnosis and veterinary treatment with medicine doses." },
       { label: "🔴 Foot & Mouth (FMD)", query: "My cattle has mouth blisters and hoof sores. What is the treatment for FMD?" },
-      { label: "🥛 Mastitis (Udder Swelling)", query: "Udder swelling and abnormal milk in cow. How to treat mastitis?" },
+      { label: "🥛 Mastitis (Udder Swelling)", query: "Udder swelling and abnormal milk in cow. How to treat mastitis with exact medicine doses?" },
       { label: "💨 Bloat Emergency", query: "Goat's stomach is bloated. What is the immediate first aid treatment?" },
     ],
     pet: [
-      { label: "🐕 Dog Mange & Itching", query: "My dog is scratching continuously and losing hair. What medicine should I use?" },
+      { label: "🐕 Dog Mange & Itching", query: "My dog is scratching continuously and losing hair. What medicine and dose should I use?" },
       { label: "🕷️ Ticks & Fleas", query: "How to safely remove ticks and fleas from my pet dog and cat?" },
       { label: "💉 Rabies Vaccine", query: "When and where should I get my pet vaccinated against rabies?" },
     ],
@@ -69,7 +70,7 @@ const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: strin
       { label: "🐛 Whiteflies & Pests", query: "How to eliminate whiteflies and mealybugs from indoor plants organically?" },
     ],
     crop: [
-      { label: "🌾 Wheat Yellow Rust", query: "What is the recommended fungicide spray and dosage for wheat yellow rust?" },
+      { label: "🌾 Wheat Yellow Rust", query: "What is the recommended fungicide spray and dosage per acre for wheat yellow rust?" },
       { label: "🌱 Fertilizer Per Acre", query: "What is the recommended Urea and DAP fertilizer per acre for wheat crop?" },
     ],
   },
@@ -83,7 +84,7 @@ const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: strin
       { label: "🫁 کھانسی و بلغم", query: "کھانسی اور بلغم کے لیے بہترین دوائی اور گھریلو علاج" },
     ],
     livestock: [
-      { label: "🐄 گائے کا بخار", query: "میری گائے کو تیز بخار ہے، چارہ نہیں کھا رہی، علاج بتائیں" },
+      { label: "🐄 گائے کا بخار", query: "میری گائے کو تیز بخار ہے، چارہ نہیں کھا رہی، علاج اور دوائی کی خوراک بتائیں" },
       { label: "🔴 منہ کھر", query: "بھینس میں منہ کھر کے چھالے ہیں، دوا اور خوراک بتائیں" },
       { label: "🥛 سڑو (ماسٹائٹس)", query: "گائے کے تھن میں سوجن اور دودھ میں تبدیلی — سڑو کا علاج" },
       { label: "💨 افارہ", query: "بکری کا پیٹ پھول گیا ہے، فوری گھریلو علاج کیا ہے؟" },
@@ -106,7 +107,7 @@ const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: strin
 
 function getLanguageChips(domainId: string, lang: string) {
   const langDict = CHIPS_BY_LANG[lang] || CHIPS_BY_LANG.en;
-  return langDict[domainId] || CHIPS_BY_LANG.en[domainId] || CHIPS_BY_LANG.ur.human;
+  return langDict[domainId] || CHIPS_BY_LANG.en[domainId] || CHIPS_BY_LANG.en.human;
 }
 
 const ASSISTANT_CONTENT: Record<string, {
@@ -114,13 +115,13 @@ const ASSISTANT_CONTENT: Record<string, {
   placeholderEn: string; placeholderUr: string;
 }> = {
   human: {
-    greetingEn: "🩺 **Assalam-o-Alaikum! I am the AZdoc AI Health Doctor.**\n\nYou can speak or type in **Urdu, English, Punjabi, Sindhi, Pashto, Balochi or Spanish**. You can also 📷 **send a photo** of any skin condition, rash, wound, or prescription — I will analyze it.\n\nAsk me about fever, infections, chronic diseases, medications, child care, or any medical concern. I give **detailed, accurate clinical answers** with medicine names and dosages.",
-    greetingUr: "🩺 **السلام علیکم! میں اے زیڈ ڈاک AI ہیلتھ ڈاکٹر ہوں۔**\n\nآپ **اردو، پنجابی، سندھی، پشتو، بلوچی، انگریزی یا ہسپانوی** میں بول یا لکھ سکتے ہیں۔ آپ 📷 **تصویر بھی بھیج سکتے ہیں** — جلد کی بیماری، زخم یا نسخے کی۔\n\nبخار، انفیکشن، دوائیں، بچوں کی صحت یا کوئی بھی طبی سوال پوچھیں — میں تفصیلی جواب دیتا ہوں۔",
+    greetingEn: "🩺 **Assalam-o-Alaikum! I am the AZdoc AI Health Doctor.**\n\nSpeak or type in **any language** — Urdu, English, Punjabi, Sindhi, Pashto, Balochi or Spanish. You can also 📷 **send a photo** of any skin condition, rash, wound, or prescription.\n\nAsk me about fever, infections, chronic diseases, medications, child care, or any medical concern. I give **detailed clinical answers** with medicine names and dosages.",
+    greetingUr: "🩺 **السلام علیکم! میں اے زیڈ ڈاک AI ہیلتھ ڈاکٹر ہوں۔**\n\nآپ **اردو، پنجابی، سندھی، پشتو، بلوچی، انگریزی** یا کسی بھی زبان میں بول یا لکھ سکتے ہیں۔ آپ 📷 **تصویر بھی بھیج سکتے ہیں**۔\n\nبخار، انفیکشن، دوائیں، بچوں کی صحت یا کوئی بھی طبی سوال پوچھیں — میں تفصیلی جواب دیتا ہوں۔",
     placeholderEn: "Describe symptoms, ask any medical question, or send a photo…",
     placeholderUr: "علامات بیان کریں، کوئی بھی طبی سوال پوچھیں یا تصویر بھیجیں…",
   },
   livestock: {
-    greetingEn: "🐄 **Assalam-o-Alaikum! I'm the AZdoc Livestock Vet.**\n\nAsk me about cattle, buffalo, goat, sheep, camel diseases — FMD, mastitis, bloat, LSD, vaccination, feed, milk drop — in any language. I give **detailed veterinary treatment with medicine doses per kg**.",
+    greetingEn: "🐄 **Assalam-o-Alaikum! I'm the AZdoc Livestock Vet.**\n\nAsk about cattle, buffalo, goat, sheep, camel diseases — FMD, mastitis, bloat, LSD, vaccination, feed, milk drop — in any language. I give **detailed veterinary treatment with medicine doses per kg**.",
     greetingUr: "🐄 **السلام علیکم! میں اے زیڈ ڈاک لائیوسٹاک ویٹ ہوں۔**\n\nگائے، بھینس، بکری کی بیماریوں کے بارے میں پوچھیں — منہ کھر، سڑو، افارہ، لمپی، ویکسین، خوراک — کسی بھی زبان میں۔",
     placeholderEn: "Ask livestock health questions in your language…",
     placeholderUr: "مویشیوں کی بیماری کا سوال پوچھیں…",
@@ -132,30 +133,28 @@ const ASSISTANT_CONTENT: Record<string, {
     placeholderUr: "پالتو جانور کا سوال پوچھیں…",
   },
   plant: {
-    greetingEn: "🪴 **Assalam-o-Alaikum! I'm the AZdoc Plant Doctor.**\n\nAsk about garden & indoor plants — yellow leaves, pests, fungus, watering. Send a 📷 **photo** of your plant for instant diagnosis.",
+    greetingEn: "🪴 **Assalam-o-Alaikum! I'm the AZdoc Plant Doctor.**\n\nAsk about garden & indoor plants — yellow leaves, pests, fungus, watering. Send a 📷 **photo** of your plant for instant visual diagnosis.",
     greetingUr: "🪴 **السلام علیکم! میں اے زیڈ ڈاک پلانٹ ڈاکٹر ہوں۔**\n\nپودوں کے مسائل پوچھیں یا تصویر بھیجیں — پیلے پتے، کیڑے، پانی کی کمی — فوری تشخیص کروائیں۔",
     placeholderEn: "Ask about your plants or send a photo…",
     placeholderUr: "پودوں کا سوال پوچھیں یا تصویر بھیجیں…",
   },
   crop: {
-    greetingEn: "🌾 **Assalam-o-Alaikum! I'm the AZdoc Crop Doctor.**\n\nAsk about wheat, rice, cotton, sugarcane — diseases, spray dosages per acre, fertilizer schedules.",
-    greetingUr: "🌾 **السلام علیکم! میں اے زیڈ ڈاک کراپ ڈاکٹر ہوں۔**\n\nگندم کی کنگی، دھان کا جھلساؤ، کپاس کے کیڑے، کھادوں کی مقدار — ہر فصل کا علاج بتاتا ہوں۔",
-    placeholderEn: "Ask crop doctor in your language…",
-    placeholderUr: "فصلوں کی بیماری کا سوال پوچھیں…",
+    greetingEn: "🌾 **Assalam-o-Alaikum! I'm the AZdoc Crop Doctor.**\n\nAsk about wheat, rice, cotton, sugarcane — diseases, spray dosages per acre, fertilizer schedules. Send 📷 **crop photos** for visual disease identification.",
+    greetingUr: "🌾 **السلام علیکم! میں اے زیڈ ڈاک کراپ ڈاکٹر ہوں۔**\n\nگندم کی کنگی، دھان کا جھلساؤ، کپاس کے کیڑے، کھادوں کی مقدار — ہر فصل کا علاج بتاتا ہوں۔ فصل کی تصویر بھیجیں۔",
+    placeholderEn: "Ask crop doctor in your language or send a photo…",
+    placeholderUr: "فصلوں کی بیماری کا سوال پوچھیں یا تصویر بھیجیں…",
   },
 };
 
-// Extract structured prescription from AI response
 function extractPrescription(aiReply: string, domainId: string, domainName: string) {
   const lower = aiReply.toLowerCase();
   const hasMedicine = lower.includes("tab.") || lower.includes("mg") || lower.includes("ml") ||
     lower.includes("paracetamol") || lower.includes("پیراسیٹامول") || lower.includes("علاج") ||
     lower.includes("treatment") || lower.includes("syrup") || lower.includes("cream") ||
-    lower.includes("injection") || lower.includes("ٹیکہ");
+    lower.includes("injection") || lower.includes("ٹیکہ") || lower.includes("دوا");
 
   if (!hasMedicine) return undefined;
 
-  // Extract medicine lines
   const lines = aiReply.split("\n");
   const medicines: string[] = [];
   const precautions: string[] = [];
@@ -167,16 +166,16 @@ function extractPrescription(aiReply: string, domainId: string, domainName: stri
       stripped.toLowerCase().includes("tab.") || stripped.toLowerCase().includes("mg") ||
       stripped.toLowerCase().includes("syrup") || stripped.toLowerCase().includes("cream") ||
       stripped.toLowerCase().includes("ml/") || stripped.includes("پیراسیٹامول") ||
-      stripped.includes("دوا")
+      stripped.includes("دوا") || stripped.toLowerCase().includes("inj.")
     ) {
-      if (medicines.length < 5) medicines.push(stripped.slice(0, 80));
+      if (medicines.length < 6) medicines.push(stripped.slice(0, 100));
     } else if (
       stripped.toLowerCase().includes("avoid") || stripped.toLowerCase().includes("rest") ||
       stripped.toLowerCase().includes("drink") || stripped.includes("پرہیز") ||
       stripped.includes("آرام") || stripped.toLowerCase().includes("doctor") ||
-      stripped.includes("ڈاکٹر")
+      stripped.includes("ڈاکٹر") || stripped.includes("احتیاط")
     ) {
-      if (precautions.length < 4) precautions.push(stripped.slice(0, 80));
+      if (precautions.length < 5) precautions.push(stripped.slice(0, 100));
     }
   }
 
@@ -221,7 +220,9 @@ export default function AssistantScreen() {
   }]);
 
   const [input, setInput] = useState("");
+  // Gemini-like voice state
   const [isListening, setIsListening] = useState(false);
+  const [interimText, setInterimText] = useState(""); // live interim text
   const [isTyping, setIsTyping] = useState(false);
   const [activeSession, setActiveSession] = useState<string | null>(null);
   const [speakingMsgId, setSpeakingMsgId] = useState<number | null>(null);
@@ -235,12 +236,11 @@ export default function AssistantScreen() {
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const voiceRecorderRef = useRef<VoiceRecorder | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -260,7 +260,6 @@ export default function AssistantScreen() {
 
   useEffect(() => () => { stopTextToSpeech(); stopCamera(); }, []);
 
-  // When language changes, update greeting
   const handleLangChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
     setShowLangMenu(false);
@@ -303,7 +302,7 @@ export default function AssistantScreen() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
     setCapturedImage(dataUrl);
     stopCamera();
   };
@@ -320,7 +319,7 @@ export default function AssistantScreen() {
     const base64 = capturedImage.split(",")[1];
     const userMsg: Message = {
       role: "user",
-      content: input.trim() || (selectedLang === "ur" ? "اس تصویر کی طبی تشخیص کریں" : "Please analyze this image and provide a medical diagnosis."),
+      content: input.trim() || (selectedLang === "ur" ? "اس تصویر کی طبی تشخیص کریں" : "Please analyze this image and provide a detailed medical diagnosis."),
       imageUrl: capturedImage,
       lang: selectedLang,
     };
@@ -347,59 +346,47 @@ export default function AssistantScreen() {
     }
   };
 
-  // ─── VOICE ─────────────────────────────────────────────────
-  const startRecording = async () => {
-    const SpeechRecognition = typeof window !== "undefined" &&
-      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
-    const langObj = SUPPORTED_LANGUAGES.find(l => l.code === selectedLang);
-
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = langObj?.locale || "ur-PK";
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (e: any) => {
-          const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
-          if (transcript) setInput(transcript);
-        };
-        recognition.onerror = () => { setIsListening(false); };
-        recognition.onend = () => setIsListening(false);
-        recognition.start();
-        recognitionRef.current = recognition;
-        return;
-      } catch { /* fall through */ }
+  // ─── GEMINI-LIKE VOICE INPUT ──────────────────────────────────────────────
+  const startListening = async () => {
+    if (isListening) {
+      await stopListening();
+      return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
+    setInterimText("");
+    const recorder = await startVoiceRecording({
+      lang: selectedLang,
+      onInterimTranscript: (text) => {
+        setInterimText(text);
+        setInput(text); // live update input as user speaks
+      },
+      onFinalTranscript: (text) => {
+        setInput(text);
+        setInterimText("");
+        inputRef.current?.focus();
+      },
+      onListeningStart: () => setIsListening(true),
+      onListeningEnd: () => {
         setIsListening(false);
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        stream.getTracks().forEach(t => t.stop());
-        const transcribed = await transcribeAudioBlob(audioBlob, selectedLang);
-        if (transcribed) setInput(transcribed);
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsListening(true);
-    } catch {
-      setIsListening(false);
-    }
+        setInterimText("");
+      },
+      onError: (errMsg) => {
+        setCameraError(errMsg as string);
+        setIsListening(false);
+        setInterimText("");
+      },
+    });
+
+    voiceRecorderRef.current = recorder;
   };
 
-  const stopRecording = () => {
-    try { recognitionRef.current?.stop(); } catch { /* ok */ }
-    recognitionRef.current = null;
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current = null;
+  const stopListening = async () => {
+    if (voiceRecorderRef.current) {
+      await voiceRecorderRef.current.stop();
+      voiceRecorderRef.current = null;
     }
     setIsListening(false);
+    setInterimText("");
   };
 
   const handlePlayVoice = (text: string, index: number) => {
@@ -410,6 +397,12 @@ export default function AssistantScreen() {
 
   // ─── SEND MESSAGE ───────────────────────────────────────────
   const sendMessage = useCallback(async () => {
+    // If listening, stop first then send
+    if (isListening) {
+      await stopListening();
+      await new Promise(res => setTimeout(res, 400)); // wait for final transcript
+    }
+
     const text = input.trim();
     if (!text && !capturedImage) return;
     if (capturedImage) { sendImageMessage(); return; }
@@ -424,7 +417,7 @@ export default function AssistantScreen() {
     try {
       const history = messages
         .filter(m => m.role === "user" || m.role === "assistant")
-        .slice(-10)
+        .slice(-12)
         .map(m => ({ role: m.role, content: m.content }));
 
       const aiReply = await askDeepSeekDoctor({
@@ -448,7 +441,7 @@ export default function AssistantScreen() {
     } finally {
       setIsTyping(false);
     }
-  }, [input, capturedImage, activeSession, messages, selectedLang, domainId, domain.name]);
+  }, [input, capturedImage, activeSession, messages, selectedLang, domainId, domain.name, isListening]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -460,28 +453,28 @@ export default function AssistantScreen() {
     <div className="flex flex-col flex-1 bg-bg-primary pb-4 overflow-hidden">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2.5 border-b border-border bg-bg-elevated/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow shrink-0">
-            <Sparkles className="w-4 h-4" />
+      <div className="flex items-center justify-between px-4 pt-3 pb-2.5 border-b border-border bg-bg-elevated/90 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 shrink-0">
+            <Sparkles className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-sm font-heading font-bold text-text-primary leading-tight">AZdoc AI Doctor</h1>
-            <p className="text-[10px] text-text-muted">DeepSeek · ElevenLabs · 7 Languages · Camera</p>
+            <p className="text-[10px] text-text-muted">Gemini Vision · DeepSeek · Groq · 7 Languages</p>
           </div>
         </div>
 
         {/* Language selector */}
         <div className="relative">
           <button onClick={() => setShowLangMenu(s => !s)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all">
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all shadow-sm">
             <span>{activeLangObj.flag}</span>
             <span>{activeLangObj.nativeName}</span>
             <ChevronDown className="w-3 h-3" />
           </button>
           {showLangMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-bg-elevated border border-border rounded-2xl shadow-2xl z-50 p-1.5 animate-scaleIn">
-              <p className="px-2.5 py-1 text-[10px] font-bold text-text-muted uppercase">Select Language:</p>
+            <div className="absolute right-0 mt-2 w-52 bg-bg-elevated border border-border rounded-2xl shadow-2xl z-50 p-1.5 animate-scaleIn">
+              <p className="px-2.5 py-1 text-[10px] font-bold text-text-muted uppercase tracking-wider">Select Language</p>
               {SUPPORTED_LANGUAGES.map(l => (
                 <button key={l.code} onClick={() => handleLangChange(l.code)}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${selectedLang === l.code ? "bg-primary text-white font-bold" : "text-text-primary hover:bg-bg-secondary"}`}>
@@ -495,11 +488,11 @@ export default function AssistantScreen() {
       </div>
 
       {/* ── Language pills ── */}
-      <div className="px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-bg-secondary/40 border-b border-border/40">
+      <div className="px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-bg-secondary/30 border-b border-border/30">
         <Languages className="w-3.5 h-3.5 text-text-muted shrink-0" />
         {SUPPORTED_LANGUAGES.map(l => (
           <button key={l.code} onClick={() => handleLangChange(l.code)}
-            className={`shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all ${selectedLang === l.code ? "bg-primary text-white shadow-xs" : "bg-bg-elevated text-text-muted border border-border hover:text-text-primary"}`}>
+            className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${selectedLang === l.code ? "bg-primary text-white shadow-sm" : "bg-bg-elevated text-text-muted border border-border hover:text-text-primary hover:border-primary/30"}`}>
             {l.flag} {l.nativeName}
           </button>
         ))}
@@ -508,69 +501,48 @@ export default function AssistantScreen() {
       {/* ── Camera View ── */}
       {showCamera && (
         <div className="fixed inset-0 bg-black z-[99999] flex flex-col justify-between overflow-hidden">
-          {/* Header Bar */}
           <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent z-10">
-            <button
-              onClick={stopCamera}
-              className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all min-touch"
-              title="Close Camera"
-            >
+            <button onClick={stopCamera} className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all" title="Close">
               <X className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2 bg-black/60 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-md shadow-lg">
+            <div className="flex items-center gap-2 bg-black/60 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-md">
               <Camera className="w-4 h-4 text-emerald-400 animate-pulse" />
               <span className="text-white font-bold text-xs uppercase tracking-wider">
                 {selectedLang === "ur" ? "اے زیڈ ڈاک کیمرہ" : "AZdoc Camera"}
               </span>
             </div>
-            <button
-              onClick={flipCamera}
-              className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all min-touch"
-              title="Flip Camera"
-            >
+            <button onClick={flipCamera} className="text-white p-2.5 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md active:scale-95 transition-all" title="Flip">
               <RotateCcw className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Video Viewport & Focus Guidelines */}
           <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
-
-            {/* Viewfinder crosshairs / focus frame */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
               <div className="w-64 h-64 border-2 border-dashed border-white/40 rounded-3xl relative flex items-center justify-center">
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl" />
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl" />
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl" />
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-xl" />
-                <span className="text-white/80 text-[11px] font-semibold bg-black/60 px-3 py-1 rounded-full backdrop-blur-xs border border-white/10 shadow-md">
+                <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-emerald-400 rounded-br-xl" />
+                <span className="text-white/80 text-[11px] font-semibold bg-black/60 px-3 py-1 rounded-full border border-white/10">
                   {selectedLang === "ur" ? "تشخیص کے لیے یہاں لائیں" : "Center subject in box"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Bottom Shutter Capture Bar */}
           <div className="relative z-10 flex flex-col items-center gap-3 p-6 pb-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-            {/* Outer Ring Shutter Button */}
-            <button
-              onClick={capturePhoto}
-              aria-label="Capture Photo"
-              className="group relative w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 bg-black/40 hover:bg-black/60 active:scale-90 transition-all duration-200 shadow-2xl cursor-pointer min-touch"
-            >
+            <button onClick={capturePhoto} aria-label="Capture Photo"
+              className="group relative w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 bg-black/40 hover:bg-black/60 active:scale-90 transition-all duration-200 shadow-2xl">
               <div className="w-full h-full rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-inner group-hover:brightness-110 transition-all">
-                <Camera className="w-8 h-8 text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+                <Camera className="w-8 h-8 text-white drop-shadow-md" />
               </div>
             </button>
-
-            {/* Clear Text Action Button */}
-            <button
-              onClick={capturePhoto}
-              className="text-white text-xs font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-full border border-white/30 shadow-xl active:scale-95 transition-all flex items-center gap-2"
-            >
+            <button onClick={capturePhoto}
+              className="text-white text-xs font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-full border border-white/30 shadow-xl active:scale-95 transition-all flex items-center gap-2">
               <Camera className="w-4 h-4" />
-              {selectedLang === "ur" ? "تصویر کھینچیں (کلک کریں)" : "TAP TO CAPTURE PHOTO"}
+              {selectedLang === "ur" ? "تصویر کھینچیں" : "TAP TO CAPTURE"}
             </button>
           </div>
         </div>
@@ -582,7 +554,7 @@ export default function AssistantScreen() {
           <img src={capturedImage} className="w-16 h-16 rounded-xl object-cover border border-border" alt="captured" />
           <div className="flex-1">
             <p className="text-xs font-bold text-text-primary">📷 Photo ready to send</p>
-            <p className="text-[10px] text-text-muted">Add a message or tap send to analyze</p>
+            <p className="text-[10px] text-text-muted">AI will analyze this with Gemini Vision</p>
           </div>
           <button onClick={() => setCapturedImage(null)} className="text-text-muted hover:text-danger transition-colors">
             <X className="w-4 h-4" />
@@ -594,6 +566,7 @@ export default function AssistantScreen() {
         <div className="mx-4 mt-2 p-3 bg-danger/10 border border-danger/30 rounded-xl flex items-center gap-2 text-danger text-xs">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{cameraError}</span>
+          <button onClick={() => setCameraError("")} className="ml-auto"><X className="w-3 h-3" /></button>
         </div>
       )}
 
@@ -602,11 +575,11 @@ export default function AssistantScreen() {
         {messages.map((msg, i) => (
           <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
             {msg.imageUrl && (
-              <img src={msg.imageUrl} className="max-w-[70%] rounded-2xl mb-1 border border-border shadow-sm" alt="user photo" />
+              <img src={msg.imageUrl} className="max-w-[70%] rounded-2xl mb-1.5 border border-border shadow-md" alt="user photo" />
             )}
             <div className={`max-w-[92%] rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${
               msg.role === "user"
-                ? "bg-gradient-to-br from-primary to-blue-500 text-white rounded-br-md"
+                ? "bg-gradient-to-br from-primary via-blue-500 to-indigo-600 text-white rounded-br-md"
                 : "bg-bg-elevated border border-border text-text-primary rounded-bl-md"
             }`}>
               {msg.content}
@@ -614,7 +587,7 @@ export default function AssistantScreen() {
               {msg.prescription && (
                 <div className="mt-3 pt-2.5 border-t border-border/60">
                   <button onClick={() => setActivePrescription(msg.prescription)}
-                    className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 text-emerald-600 text-xs font-bold flex items-center justify-between hover:bg-emerald-500/25 transition-all">
+                    className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 text-emerald-600 text-xs font-bold flex items-center justify-between hover:bg-emerald-500/20 transition-all">
                     <span className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />View Prescription Slip (Rx)</span>
                     <span className="text-[10px] uppercase underline">Open →</span>
                   </button>
@@ -644,7 +617,8 @@ export default function AssistantScreen() {
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-bg-elevated border border-border rounded-3xl rounded-bl-md px-4 py-3 shadow-sm flex items-center gap-2">
-              <span className="text-xs text-text-muted font-medium">AZdoc Doctor analysing</span>
+              <Wand2 className="w-3.5 h-3.5 text-primary animate-pulse" />
+              <span className="text-xs text-text-muted font-medium">AZdoc AI analysing</span>
               <div className="flex gap-1">
                 <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
                 <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.15s]" />
@@ -660,39 +634,60 @@ export default function AssistantScreen() {
       <div className="mx-4 mb-2 flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
         {getLanguageChips(domainId, selectedLang).map((chip, idx) => (
           <button key={idx} onClick={() => setInput(chip.query)}
-            className="shrink-0 bg-bg-elevated border border-primary/20 text-text-primary hover:border-primary px-3 py-1.5 rounded-full text-[11px] font-medium transition-all shadow-xs">
+            className="shrink-0 bg-bg-elevated border border-primary/20 text-text-primary hover:border-primary hover:bg-primary/5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all shadow-xs">
             {chip.label}
           </button>
         ))}
       </div>
 
-      {/* ── Recording banner ── */}
+      {/* ── Gemini-like Voice Banner ── */}
       {isListening && (
-        <div className="mx-4 mb-2 p-3 bg-danger/10 border border-danger/30 rounded-2xl flex items-center justify-between animate-pulse">
-          <div className="flex items-center gap-2 text-danger font-bold text-xs">
-            <Mic className="w-4 h-4 animate-bounce" />
-            <span>Listening in {activeLangObj.name} ({activeLangObj.nativeName})… Speak now</span>
+        <div className="mx-4 mb-2 p-3 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-danger/30 rounded-2xl">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2 text-danger font-bold text-xs">
+              <div className="relative">
+                <Mic className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-danger rounded-full animate-ping" />
+              </div>
+              <span>Listening in {activeLangObj.name} ({activeLangObj.nativeName})…</span>
+            </div>
+            <button onClick={stopListening} className="px-3 py-1 rounded-xl bg-danger text-white text-[10px] font-bold shadow-sm hover:bg-red-600 transition-colors">
+              Done ✓
+            </button>
           </div>
-          <button onClick={stopRecording} className="px-2.5 py-1 rounded-xl bg-danger text-white text-[10px] font-bold">Done</button>
+          {/* Live interim text display (Gemini-style) */}
+          {interimText && (
+            <p className="text-xs text-text-primary font-medium bg-bg-elevated/70 rounded-xl px-3 py-2 border border-border/50 animate-pulse">
+              🎙️ {interimText}
+            </p>
+          )}
+          {!interimText && (
+            <div className="flex items-center gap-1 px-3 py-1.5">
+              {[1,2,3,4,5].map(b => (
+                <span key={b} className="h-5 w-1 bg-danger/60 rounded-full animate-bounce"
+                  style={{ animationDelay: `${b * 0.1}s`, animationDuration: "0.8s" }} />
+              ))}
+              <span className="text-[10px] text-text-muted ml-2">Speak now…</span>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Input bar ── */}
       <div className="mx-4">
-        {/* Hidden File Input for Uploading Photo from Device Gallery */}
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleGalleryUpload}
-        />
+        <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} />
 
-        <div className="flex items-center gap-1.5 bg-bg-elevated border-2 border-border focus-within:border-primary/50 rounded-3xl px-3 py-1.5 shadow-sm transition-all">
-          {/* Mic button */}
-          <button onClick={() => { if (isListening) stopRecording(); else startRecording(); }}
-            title="Voice Input"
-            className={`flex items-center justify-center rounded-2xl p-2 transition-all ${isListening ? "bg-danger text-white shadow-lg animate-pulse scale-105" : "text-text-muted hover:text-primary hover:bg-primary/10"}`}>
+        <div className={`flex items-center gap-1.5 bg-bg-elevated border-2 transition-all rounded-3xl px-3 py-1.5 shadow-sm ${isListening ? "border-danger/50 shadow-danger/10" : "border-border focus-within:border-primary/50"}`}>
+          {/* Mic button — Gemini-like toggle */}
+          <button
+            onClick={startListening}
+            title={isListening ? "Stop Recording" : "Voice Input (any language)"}
+            id="voice-input-btn"
+            className={`flex items-center justify-center rounded-2xl p-2 transition-all ${
+              isListening
+                ? "bg-danger text-white shadow-lg shadow-danger/30 scale-110 animate-pulse"
+                : "text-text-muted hover:text-primary hover:bg-primary/10"
+            }`}>
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
 
@@ -703,7 +698,7 @@ export default function AssistantScreen() {
             <Camera className="w-5 h-5" />
           </button>
 
-          {/* Upload Photo from Gallery button */}
+          {/* Upload Photo button */}
           <button onClick={() => galleryInputRef.current?.click()}
             title="Upload Photo from Gallery"
             className="flex items-center justify-center rounded-2xl p-2 text-text-muted hover:text-primary hover:bg-primary/10 transition-all">
@@ -711,28 +706,32 @@ export default function AssistantScreen() {
           </button>
 
           <input
+            ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedLang === "ur" ? personality.placeholderUr : `Type, speak or upload photo…`}
+            placeholder={
+              isListening
+                ? (selectedLang === "ur" ? "سن رہا ہوں…" : "Listening… speak in any language")
+                : (selectedLang === "ur" ? personality.placeholderUr : personality.placeholderEn)
+            }
             className="flex-1 py-2 text-xs sm:text-sm bg-transparent outline-none text-text-primary placeholder:text-text-muted/60 min-w-0"
           />
 
           <button onClick={sendMessage}
             disabled={!input.trim() && !capturedImage}
+            id="send-message-btn"
             className="flex items-center justify-center rounded-2xl p-2.5 text-white bg-primary hover:bg-primary-light transition-all disabled:opacity-40 shadow-md active:scale-95 shrink-0">
             <Send className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Input hint */}
-        {!capturedImage && !showCamera && (
+        {!capturedImage && !showCamera && !isListening && (
           <p className="text-center text-[10px] text-text-muted mt-1.5 flex items-center justify-center gap-2">
-            <span>📷 Live Camera</span>
-            <span>·</span>
-            <span>🖼️ Upload Photo</span>
-            <span>·</span>
-            <span>🎙️ 7-Lang Voice AI</span>
+            <span>📷 Camera</span><span>·</span>
+            <span>🖼️ Upload</span><span>·</span>
+            <span>🎙️ Voice (any language)</span><span>·</span>
+            <span>⌨️ Type</span>
           </p>
         )}
       </div>
@@ -743,7 +742,7 @@ export default function AssistantScreen() {
           <div className="bg-bg-elevated border border-border rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-4 animate-scaleIn max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm">Rx</div>
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-500/20">Rx</div>
                 <div>
                   <h3 className="font-heading font-bold text-sm text-text-primary">Medical Prescription Slip</h3>
                   <p className="text-[10px] text-text-muted">{activePrescription.doctorName}</p>
@@ -774,7 +773,7 @@ export default function AssistantScreen() {
               <div>
                 <p className="text-[10px] font-bold text-text-muted uppercase mb-1">Precautions & Advice:</p>
                 <ul className="list-disc list-inside text-text-muted space-y-1">
-                  {activePrescription.precautions.map((p: string, idx: number) => (<li key={idx}>{p}</li>))}
+                  {activePrescription.precautions.map((p: string, idx: number) => <li key={idx}>{p}</li>)}
                 </ul>
               </div>
             </div>

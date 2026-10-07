@@ -167,9 +167,27 @@ export default function AuthScreen() {
 
           {/* Success / Error alerts */}
           {success && (
-            <div className="mb-4 p-3.5 bg-success-bg border border-success/20 rounded-xl flex items-start gap-2.5">
-              <CheckCircle className="w-4 h-4 text-success shrink-0 mt-0.5" />
-              <p className="text-xs text-success font-medium">{success}</p>
+            <div className="mb-4 p-4 bg-emerald-50 border-2 border-emerald-400/40 rounded-2xl space-y-2">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-700">Account Created! ✅</p>
+                  <p className="text-xs text-emerald-600 mt-0.5 leading-relaxed">
+                    📧 <strong>Check your email inbox</strong> for a confirmation link from AZdoc.<br/>
+                    Click the link to activate your account, then log in here.
+                  </p>
+                </div>
+              </div>
+              <div className="pl-7 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => switchMode("login")}
+                  className="text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  ← Go to Login
+                </button>
+                <span className="text-[10px] text-emerald-600">Email sent! Check spam folder too.</span>
+              </div>
             </div>
           )}
 
