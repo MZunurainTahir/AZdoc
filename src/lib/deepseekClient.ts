@@ -1,14 +1,22 @@
 /**
- * AZdoc AI Doctor Client — v3.0
- * Uses Gemini 2.0 Flash for vision (image) analysis + DeepSeek for text responses.
- * Achieves maximum accuracy for all domains: Human, Livestock, Pet, Plant, Crop.
+ * AZdoc AI Doctor Client — v4.0 (Multi-LLM + Client RAG Engine)
+ * Features:
+ *  • Gemini 2.0 Flash Vision & Text
+ *  • Groq Llama 3.3 70B
+ *  • OpenRouter DeepSeek / Claude / GPT-4o
+ *  • Pollinations AI (Zero-key guaranteed free LLM endpoint)
+ *  • Client RAG Knowledge Base Integration
+ *  • Domain-isolated fallback (No Paracetamol for crops!)
  */
 
 import type { DomainId } from "./domains";
+import { generateClientRAGAnswer } from "./ragClient";
 
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY as string | undefined;
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY) as string | undefined;
+
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -33,17 +41,13 @@ CORE RULES:
 1. Give DETAILED, ACCURATE, PERSONALIZED medical responses. Never generic. Never refuse to answer.
 2. For every condition, provide:
    a) Likely DIAGNOSIS with differential diagnoses
-   b) CLINICAL EXPLANATION (pathophysiology briefly)
-   c) MEDICINE NAMES: generic name + Pakistan brand name + dose (adult & child) + frequency + duration
+   b) CLINICAL EXPLANATION
+   c) MEDICINE NAMES: generic name + Pakistan brand name + dose + frequency + duration
    d) HOME REMEDIES & supportive care
    e) RED FLAGS — when to go to EMERGENCY IMMEDIATELY
-   f) FOLLOW UP: when to see a doctor, what tests (CBC, Urine RE, etc.)
-3. For IMAGES: Analyze carefully. Identify the exact condition visible (skin lesion type, rash pattern, wound characteristics, eye condition, etc.). Give clinical accuracy.
-4. LANGUAGE RULE: Respond 100% in the user's language. If Urdu → full Urdu script. If Sindhi → full Sindhi. Exact match.
-5. Minimum 200 words per response. Be thorough.
-6. For CHEST PAIN / STROKE / BREATHING DIFFICULTY: say GO TO EMERGENCY NOW.
-7. Include Pakistani emergency numbers: 1122 (Rescue), 115 (Edhi), 0800-88000 (Health Helpline).
-8. End with a short medical disclaimer.`,
+   f) FOLLOW UP: when to see a doctor
+3. LANGUAGE RULE: Respond 100% in the user's language. If Urdu → full Urdu script. If English → English.
+4. End with a short medical disclaimer.`,
 
   livestock: `You are Dr. AZdoc, a senior DVM (Doctor of Veterinary Medicine) with 15+ years specializing in large animals: cattle, buffalo, goat, sheep, camel in Pakistan.
 
@@ -55,12 +59,9 @@ CORE RULES:
    d) TREATMENT: exact medicine names (Pakistan market), doses in ml/kg body weight, route (IM/IV/SC/oral), duration
    e) WITHDRAWAL PERIOD for milk and meat
    f) PREVENTION & VACCINATION SCHEDULE
-   g) FEEDING & SUPPORTIVE CARE
-2. For IMAGES: Identify the visible lesion/condition on the animal. Describe what you see (skin texture, lesion type, eye appearance, hoof condition, udder swelling etc.)
-3. EMERGENCY conditions (bloat/Tympany, milk fever, prolapse, obstructed parturition): give IMMEDIATE first aid before vet arrives.
-4. Mention Pakistan Livestock Helpline: 0800-29000
-5. LANGUAGE RULE: Respond 100% in user's language.
-6. Minimum 200 words. Include all dose specifics.`,
+2. Emergency conditions (bloat/Tympany, milk fever, prolapse): give IMMEDIATE first aid protocol.
+3. Mention Pakistan Livestock Helpline: 0800-29000
+4. LANGUAGE RULE: Respond 100% in user's language.`,
 
   pet: `You are Dr. AZdoc, a certified companion animal veterinarian (BVMS) specializing in dogs, cats, birds, rabbits, and hamsters.
 
@@ -68,52 +69,30 @@ CORE RULES:
 1. For every case provide:
    a) DIAGNOSIS with species-specific considerations
    b) TREATMENT: medicine names, dose by weight (mg/kg), frequency, route, duration
-   c) VACCINATION SCHEDULE (puppies, kittens, adult boosters)
+   c) VACCINATION SCHEDULE
    d) DIET & NUTRITION recommendations
-   e) HOME CARE: grooming, environment, hygiene
-   f) WHEN TO SEE VET URGENTLY
-2. For IMAGES: Describe what you see (skin condition, coat, eye clarity, ear canal, body posture, lesion characteristics). Give accurate visual diagnosis.
-3. For TOXICITY EMERGENCIES (chocolate, onion, xylitol, antifreeze): immediate first aid protocol.
-4. LANGUAGE RULE: Respond 100% in user's language.
-5. Minimum 150 words.`,
+   e) WHEN TO SEE VET URGENTLY
+2. LANGUAGE RULE: Respond 100% in user's language.`,
 
   plant: `You are Dr. AZdoc, a certified PhD Horticulturist and Plant Pathologist specializing in houseplants, ornamental plants, and garden plants.
 
 CORE RULES:
 1. For every case provide:
    a) DISEASE/PROBLEM DIAGNOSIS: exact name (fungal/bacterial/viral/pest/nutrient deficiency)
-   b) VISUAL SYMPTOMS to confirm (leaf color, texture, pattern, stem/root appearance)
-   c) CAUSE: environmental stress, pathogen, pest, watering issue
-   d) ORGANIC TREATMENT: neem oil, baking soda, garlic spray, compost, etc.
-   e) CHEMICAL TREATMENT: product names available in Pakistan, dose, application method
-   f) PREVENTION: proper watering schedule, fertilizer NPK ratio, light requirements, pot media
-2. For IMAGES: Analyze the plant photo carefully. Identify:
-   - Plant species if recognizable
-   - Type of damage: yellowing pattern (interveinal = Mg deficiency; overall = N deficiency), spots, lesions, wilting, pest presence
-   - Severity (early/moderate/severe)
-   Give an accurate visual diagnosis.
-3. LANGUAGE RULE: Respond 100% in user's language.
-4. Minimum 150 words.`,
+   b) VISUAL SYMPTOMS to confirm
+   c) ORGANIC TREATMENT: neem oil, baking soda, garlic spray, etc.
+   d) CHEMICAL TREATMENT: product names available in Pakistan, dose, application method
+   e) PREVENTION: proper watering schedule, NPK fertilizer, light requirements
+2. LANGUAGE RULE: Respond 100% in user's language.`,
 
   crop: `You are Dr. AZdoc, an expert Agronomist and Crop Protection Specialist with 20+ years working with Punjab Agriculture Department on major Pakistan crops: wheat (گندم), rice (چاول), cotton (کپاس), sugarcane (گنا), maize (مکئی), and vegetables.
 
 CORE RULES:
-1. For every case provide:
-   a) DISEASE/PEST IDENTIFICATION: exact name (Urdu + English + scientific name)
-   b) DIAGNOSTIC FEATURES: how to confirm visually
-   c) SPRAY SCHEDULE: specific pesticide/fungicide names (Pakistan brands), dose per acre, water per acre, timing
-   d) FERTILIZER RECOMMENDATIONS: NPK per acre, timing, method (urea, DAP, SOP)
-   e) CRITICAL TIMING: crop growth stage, spray window, re-entry interval
-   f) INTEGRATED PEST MANAGEMENT: biological/cultural control options
-2. For IMAGES: Analyze the crop photo carefully. Identify:
-   - Crop type and growth stage
-   - Disease: rust, blight, smut, mosaic, leaf spot — describe the visual pattern
-   - Pest: describe the insect/damage pattern
-   - Nutrient deficiency: identify from yellowing/coloration pattern
-   Give precise visual diagnosis.
-3. LANGUAGE RULE: Respond 100% in user's language.
-4. Mention Punjab Agriculture Department helpline where relevant: 0800-15000
-5. Minimum 200 words.`,
+1. Answer ANY agricultural, crop, fertilizer, pesticide, or soil question thoroughly and accurately.
+2. For FERTILIZER questions: Give exact DAP, Urea, SOP, NPK per acre dosage, application timing (at sowing, 1st irrigation, 2nd irrigation), and soil moisture rules.
+3. For DISEASE/PEST questions: Identify exact disease, spray products (Syngenta, FMC, Bayer brands), dose per acre, and IPM control.
+4. LANGUAGE RULE: Respond 100% in user's language.
+5. Mention Punjab Agriculture Helpline where relevant: 0800-15000`,
 };
 
 export interface DeepSeekMessage {
@@ -122,9 +101,14 @@ export interface DeepSeekMessage {
 }
 
 /**
- * Main AI Doctor function — Routes to best available model
- * Text: DeepSeek → Groq (fallback) → OpenRouter (fallback)
- * Images: OpenRouter Gemini Flash Vision → DeepSeek (fallback)
+ * Main AI Doctor function — Routes through multi-model AI Pipeline:
+ * 1. Gemini Direct API
+ * 2. Groq Llama 3.3
+ * 3. DeepSeek API
+ * 4. OpenRouter API
+ * 5. Pollinations AI (Zero-key guaranteed free endpoint)
+ * 6. Client RAG Knowledge Base Engine
+ * 7. Domain-Isolated Smart Fallback
  */
 export async function askDeepSeekDoctor(params: {
   userMessage: string;
@@ -139,11 +123,11 @@ export async function askDeepSeekDoctor(params: {
 
   const fullSystem = `${systemPrompt}
 
-LANGUAGE INSTRUCTION: The user is communicating in ${langName}. Your ENTIRE response MUST be written in ${langName} only. Do not switch languages. If the user speaks Urdu, respond in full Urdu script. If Punjabi, in Punjabi. If English, in English. Match exactly.
+LANGUAGE INSTRUCTION: The user is communicating in ${langName}. Your ENTIRE response MUST be written in ${langName} only. Do not switch languages. Match exactly.
 
 Current consultation domain: ${domain}`;
 
-  // ── IMAGE PATH: OpenRouter with Gemini 2.0 Flash (best vision accuracy) ───
+  // ── IMAGE PATH: Vision analysis ───
   if (imageBase64) {
     const imageResult = await analyzeImageWithVision({
       imageBase64,
@@ -155,7 +139,7 @@ Current consultation domain: ${domain}`;
     if (imageResult) return imageResult;
   }
 
-  // ── TEXT PATH: DeepSeek → Groq → OpenRouter ───────────────────────────────
+  // ── TEXT PATH ─────────────────────────────────────────────────────────────
   const messages: DeepSeekMessage[] = [
     { role: "system", content: fullSystem },
     ...history.slice(-10).map((m) => ({
@@ -165,35 +149,31 @@ Current consultation domain: ${domain}`;
     { role: "user", content: userMessage },
   ];
 
-  // 1. DeepSeek (primary — best for structured medical responses)
-  if (DEEPSEEK_API_KEY) {
+  // 1. Gemini API Direct (fastest & high accuracy)
+  if (GEMINI_API_KEY) {
     try {
-      const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const res = await fetch(geminiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "deepseek-chat",
-          messages,
-          temperature: 0.25,
-          max_tokens: 1500,
-          stream: false,
+          contents: [
+            { role: "user", parts: [{ text: `${fullSystem}\n\nUser Question: ${userMessage}` }] },
+          ],
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(15000),
       });
       if (res.ok) {
         const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 20) return reply.trim();
+        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined;
+        if (reply && reply.trim().length > 30) return reply.trim();
       }
     } catch (err) {
-      console.warn("[DeepSeek] Failed:", err);
+      console.warn("[Gemini Direct] Failed:", err);
     }
   }
 
-  // 2. Groq Llama (fast fallback for text)
+  // 2. Groq Llama 3.3 (high speed & intelligence)
   if (GROQ_API_KEY) {
     try {
       const groqMessages = messages.map((m) => ({
@@ -209,22 +189,49 @@ Current consultation domain: ${domain}`;
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: groqMessages,
-          temperature: 0.25,
+          temperature: 0.3,
           max_tokens: 1500,
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(20000),
       });
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 20) return reply.trim();
+        if (reply && reply.trim().length > 30) return reply.trim();
       }
     } catch (err) {
       console.warn("[Groq] Failed:", err);
     }
   }
 
-  // 3. OpenRouter (final text fallback)
+  // 3. DeepSeek API
+  if (DEEPSEEK_API_KEY) {
+    try {
+      const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages,
+          temperature: 0.3,
+          max_tokens: 1500,
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data?.choices?.[0]?.message?.content as string | undefined;
+        if (reply && reply.trim().length > 30) return reply.trim();
+      }
+    } catch (err) {
+      console.warn("[DeepSeek] Failed:", err);
+    }
+  }
+
+  // 4. OpenRouter API
   if (OPENROUTER_API_KEY) {
     try {
       const orMessages = messages.map((m) => ({
@@ -240,29 +247,51 @@ Current consultation domain: ${domain}`;
           "X-Title": "AZdoc AI Doctor",
         },
         body: JSON.stringify({
-          model: "deepseek/deepseek-chat",
+          model: "google/gemini-flash-1.5",
           messages: orMessages,
-          temperature: 0.25,
+          temperature: 0.3,
           max_tokens: 1500,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(20000),
       });
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 20) return reply.trim();
+        if (reply && reply.trim().length > 30) return reply.trim();
       }
     } catch (err) {
       console.warn("[OpenRouter] Failed:", err);
     }
   }
 
+  // 5. Pollinations AI (Zero API key required public LLM endpoint)
+  try {
+    const promptText = encodeURIComponent(`${fullSystem}\n\nUser Question: ${userMessage}`);
+    const polRes = await fetch(`https://text.pollinations.ai/${promptText}?model=openai&system=${encodeURIComponent(fullSystem)}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (polRes.ok) {
+      const reply = await polRes.text();
+      if (reply && reply.trim().length > 30) {
+        return reply.trim();
+      }
+    }
+  } catch (err) {
+    console.warn("[Pollinations AI] Failed:", err);
+  }
+
+  // 6. RAG Knowledge Base fallback (Instant local verified answers)
+  const ragAnswer = generateClientRAGAnswer(userMessage, lang === "ur" ? "ur" : "en", domain);
+  if (ragAnswer && ragAnswer.length > 40) {
+    return ragAnswer;
+  }
+
+  // 7. Domain-Isolated Fallback Response
   return fallbackResponse(userMessage, lang, domain);
 }
 
 /**
- * Analyzes images using OpenRouter with Gemini 2.0 Flash Experimental (best vision model)
- * Falls back to OpenRouter Claude/GPT-4V if needed.
+ * Vision analysis using OpenRouter or Gemini
  */
 async function analyzeImageWithVision(params: {
   imageBase64: string;
@@ -272,30 +301,23 @@ async function analyzeImageWithVision(params: {
   lang: LangCode;
 }): Promise<string | null> {
   const { imageBase64, userMessage, systemPrompt, domain, lang } = params;
-
-  // Determine image mime type
-  const mimeType = imageBase64.startsWith("/9j") ? "image/jpeg" : "image/jpeg";
+  const mimeType = "image/jpeg";
   const dataUrl = `data:${mimeType};base64,${imageBase64}`;
 
   const visionSystemPrompt = `${systemPrompt}
 
 VISION ANALYSIS INSTRUCTIONS:
-- You are analyzing a medical/agricultural/veterinary image.
-- Examine the image VERY carefully and thoroughly.
-- Describe exactly what you see: colors, textures, patterns, lesion characteristics, affected areas.
-- Provide a CONFIDENT, SPECIFIC diagnosis based on the visual evidence.
-- Do NOT say "I cannot analyze images" — you CAN and MUST analyze this image.
-- Give actionable treatment recommendations based on what you observe.
-- Domain: ${domain}`;
+- You are analyzing an image in the ${domain} domain.
+- Describe what you see in detail (lesion texture, color, affected plant/animal/human tissue).
+- Give a confident diagnosis and specific treatment plan.`;
 
   const visionUserMessage = userMessage || getDomainImagePrompt(domain, lang);
 
-  // 1. OpenRouter → Gemini 2.0 Flash (best free vision model)
+  // Pollinations Vision free endpoint or OpenRouter
   if (OPENROUTER_API_KEY) {
     const models = [
       "google/gemini-2.0-flash-exp:free",
       "google/gemini-flash-1.5",
-      "anthropic/claude-3-haiku",
       "openai/gpt-4o-mini",
     ];
 
@@ -307,7 +329,7 @@ VISION ANALYSIS INSTRUCTIONS:
             "Content-Type": "application/json",
             Authorization: `Bearer ${OPENROUTER_API_KEY}`,
             "HTTP-Referer": "https://azdoc.vercel.app",
-            "X-Title": "AZdoc AI Doctor Vision",
+            "X-Title": "AZdoc Vision",
           },
           body: JSON.stringify({
             model,
@@ -324,92 +346,19 @@ VISION ANALYSIS INSTRUCTIONS:
             temperature: 0.2,
             max_tokens: 1500,
           }),
-          signal: AbortSignal.timeout(35000),
+          signal: AbortSignal.timeout(25000),
         });
 
         if (res.ok) {
           const data = await res.json();
           const reply = data?.choices?.[0]?.message?.content as string | undefined;
           if (reply && reply.trim().length > 30) {
-            console.info(`[Vision] Success with model: ${model}`);
             return reply.trim();
           }
         }
       } catch (err) {
-        console.warn(`[Vision] Model ${model} failed:`, err);
+        console.warn(`[Vision] ${model} failed:`, err);
       }
-    }
-  }
-
-  // 2. DeepSeek vision fallback
-  if (DEEPSEEK_API_KEY) {
-    try {
-      const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "deepseek-chat",
-          messages: [
-            { role: "system", content: visionSystemPrompt },
-            {
-              role: "user",
-              content: [
-                { type: "image_url", image_url: { url: dataUrl } },
-                { type: "text", text: visionUserMessage },
-              ],
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 1500,
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
-      }
-    } catch (err) {
-      console.warn("[DeepSeek Vision] Failed:", err);
-    }
-  }
-
-  // 3. Groq vision (llava)
-  if (GROQ_API_KEY) {
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llava-v1.5-7b-4096-preview",
-          messages: [
-            { role: "system", content: visionSystemPrompt },
-            {
-              role: "user",
-              content: [
-                { type: "image_url", image_url: { url: dataUrl } },
-                { type: "text", text: visionUserMessage },
-              ],
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 1200,
-        }),
-        signal: AbortSignal.timeout(25000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
-      }
-    } catch (err) {
-      console.warn("[Groq LLaVA] Failed:", err);
     }
   }
 
@@ -417,134 +366,119 @@ VISION ANALYSIS INSTRUCTIONS:
 }
 
 function getDomainImagePrompt(domain: DomainId, lang: LangCode): string {
-  const prompts: Record<DomainId, Record<string, string>> = {
-    human: {
-      ur: "اس تصویر کا طبی تجزیہ کریں۔ جلد کی حالت، زخم، آنکھ یا جو بھی نظر آئے اسکی درست تشخیص اور علاج بتائیں۔",
-      en: "Analyze this medical image. Identify the condition visible (skin lesion, wound, eye problem, rash etc.) and provide accurate diagnosis and treatment.",
-    },
-    livestock: {
-      ur: "اس جانور کی تصویر کا جائزہ لیں۔ جو بیماری یا زخم نظر آئے اسکی تشخیص اور ویٹرنری علاج بتائیں۔",
-      en: "Analyze this livestock animal image. Identify any disease, lesion, or abnormality visible and provide veterinary diagnosis and treatment.",
-    },
-    pet: {
-      ur: "اس پالتو جانور کی تصویر سے بیماری کی تشخیص کریں اور علاج بتائیں۔",
-      en: "Diagnose the pet's condition from this image and provide treatment recommendations.",
-    },
-    plant: {
-      ur: "اس پودے کی تصویر سے بیماری یا مسئلہ پہچانیں اور علاج بتائیں۔",
-      en: "Identify the plant disease, deficiency, or pest problem from this image and provide treatment.",
-    },
-    crop: {
-      ur: "اس فصل کی تصویر سے بیماری یا کیڑے کا تعین کریں اور اسپرے و علاج تجویز کریں۔",
-      en: "Identify the crop disease, pest, or deficiency from this image and recommend spray and treatment.",
-    },
-  };
-  const domainPrompts = prompts[domain] || prompts.human;
-  return domainPrompts[lang] || domainPrompts.en;
+  const isUr = lang === "ur";
+  switch (domain) {
+    case "crop":
+      return isUr ? "اس فصل کی تصویر کا جائزہ لیں اور بیماری/کیڑے کا علاج بتائیں" : "Analyze this crop image and provide disease diagnosis and treatment plan.";
+    case "plant":
+      return isUr ? "اس پودے کا معائنہ کریں اور مسئلے کا قدرتی یا کیمیائی علاج بتائیں" : "Analyze this plant photo and suggest treatment.";
+    case "livestock":
+      return isUr ? "اس جانور کی علامات اور بیماری کی ویٹرنری تشخیص کریں" : "Analyze this livestock photo and provide veterinary advice.";
+    case "pet":
+      return isUr ? "اس پالتو جانور کی خارش/بیماری کا علاج بتائیں" : "Analyze this pet photo and provide vet guidance.";
+    case "human":
+    default:
+      return isUr ? "اس طبی تصویر کی تشخیص اور علاج کا مشورہ دیں" : "Analyze this medical image and provide diagnosis and guidance.";
+  }
 }
 
 /**
- * Intelligent local fallback when all APIs unavailable
+ * Domain-isolated fallback response — NEVER mixes crop with human paracetamol!
  */
-function fallbackResponse(query: string, lang: LangCode, domain: DomainId): string {
-  const q = query.toLowerCase();
-  const isUrdu = lang === "ur" || lang === "pa" || lang === "sd" || lang === "bal" || q.match(/[\u0600-\u06FF]/);
+function fallbackResponse(userQuery: string, lang: LangCode, domain: DomainId): string {
+  const isUrdu = lang === "ur" || /[\u0600-\u06FF]/.test(userQuery);
 
-  // FEVER
-  if (q.includes("بخار") || q.includes("fever") || q.includes("تپ") || q.includes("حرارت")) {
+  // 1. CROP / FASALDOC
+  if (domain === "crop") {
     if (isUrdu) {
-      return `🩺 **بخار کا مکمل طبی علاج (AZdoc AI Doctor)**
+      return `🌾 **زرعی و فصلات ماہرانہ رہنمائی (AZdoc FasalDoc Agronomist)**
 
-**تشخیص:** وائرل یا بیکٹیریل انفیکشن کا امکان
+**گندم، دھان اور دیگر فصلوں کے لیے تجاویز:**
+• **کھاد کا شیڈول (فی ایکڑ):** 1.5 بوری DAP بوائی کے وقت؛ 1 سے 1.25 بوری یوریا + 3 کلوگرام زنک سلفیٹ (33%) پہلے پانی پر (20-25 دن)؛ 1 بوری یوریا دوسرے پانی پر (40-45 دن)۔
+• **کنگی و فنگل بیماری:** Nativo 75WG (65g/ایکڑ) یا Tilt 250 EC (200ml/ایکڑ) اسپرے کریں۔
+• **سست تیلہ و کیڑے:** Imidacloprid 200SL (100ml/100L پانی) اسپرے کریں۔
 
-**دوائیں:**
-• **Tab. Paracetamol (Panadol) 500mg–1000mg:** ہر 6 گھنٹے بعد (بالغ) | بچے: 15mg/kg
-• **Tab. Ibuprofen (Brufen) 400mg:** شدید درد پر ہر 8 گھنٹے بعد (کھانے کے بعد)
-• **بخار 39°C سے اوپر:** ٹھنڈے پانی کی پٹیاں لگائیں
-
-**احتیاط:** پانی 10+ گلاس، ہلکی خوراک، آرام
-**ایمرجنسی:** بخار 103°F سے اوپر یا 3 دن مسلسل → فوری ہسپتال
-⚠️ *1122 | Health Helpline: 0800-88000*`;
+📞 **زرعی ہیلپ لائن:** 0800-15000`;
     }
-    return `🩺 **Fever — Clinical Management (AZdoc AI Doctor)**
+    return `🌾 **Crop & Agricultural Guidance (AZdoc FasalDoc Agronomist)**
 
-**Assessment:** Likely viral/bacterial infection
+**General Crop & Fertilizer Recommendations:**
+• **Wheat Fertilizer (per Acre):** 1.5 bags DAP at sowing time; 1 to 1.25 bags Urea + 3 kg Zinc Sulphate (33%) at 1st irrigation (20-25 days); 1 bag Urea at 2nd irrigation (40-45 days).
+• **Rust & Fungal Blight:** Spray Propiconazole (Tilt 250 EC @ 200ml/acre) or Tebuconazole + Trifloxystrobin (Nativo 75WG @ 65g/acre).
+• **Aphids & Pests:** Spray Imidacloprid 200SL @ 100ml/100L water per acre.
 
-**Medications:**
-• **Paracetamol (Panadol) 500-1000mg:** Every 6 hrs after meals | Children: 15mg/kg
-• **Ibuprofen (Brufen) 400mg:** Every 8 hrs for high inflammatory pain
-• **Tepid sponging:** For fever > 39°C
-
-**Supportive Care:** 10+ glasses of water, ORS, rest, light diet
-**Emergency:** Fever > 103°F for 3+ days → Go to hospital immediately
-⚠️ *Emergency: 1122 | Health Helpline: 0800-88000*`;
+📞 **Agriculture Helpline:** 0800-15000`;
   }
 
-  // SKIN
-  if (q.includes("خارش") || q.includes("جلد") || q.includes("skin") || q.includes("rash") || q.includes("itching")) {
+  // 2. PLANT / PLANTDOC
+  if (domain === "plant") {
     if (isUrdu) {
-      return `🩺 **جلد کی خارش و انفیکشن کا علاج (AZdoc Dermatologist)**
+      return `🌿 **پودوں کی دیکھ بھال و بیماری علاج (AZdoc PlantDoc)**
 
-**ممکنہ تشخیص:** فنگل انفیکشن، ایگزیما، یا الرجک رد عمل
-
-**دوائیں:**
-• **Cream Clotrimazole 1% (Canesten):** دن میں 2 بار 3 ہفتے
-• **Tab. Cetirizine (Zyrtec) 10mg:** رات کو 1 گولی (خارش کے لیے)
-• **Lotion Calamine:** فوری ٹھنڈک اور آرام کے لیے
-
-**پرہیز:** خارش نہ رگڑیں، کپڑے ابلتے پانی میں دھوئیں
-⚠️ *جلد کے ماہر سے معائنہ کروائیں۔*`;
+• **پتوں کا پیلا پن:** نائٹروجن کی کمی دور کرنے کے لیے ہلکی یوریا یا NPK 20:20:20 دیں۔
+• **سفید پھپھوندی و دھبے:** نیم آئل (5ml/لیٹر پانی + صابن قطرہ) اسپرے کریں یا کاپر آکسی کلورائیڈ 2g/L۔
+• **پانی کی مقدار:** مٹی 2cm خشک ہونے پر پانی دیں۔`;
     }
+    return `🌿 **Plant Care & Disease Guidance (AZdoc PlantDoc)**
+
+• **Yellowing Leaves:** Apply balanced NPK 20:20:20 or light liquid fertilizer for nitrogen recovery.
+• **Fungal Spots & Mildew:** Spray Neem Oil (5ml/1L water + 1 drop liquid dish soap) or Copper Oxychloride @ 2g/L.
+• **Watering Rule:** Only water when top 2cm of soil feels dry to the touch.`;
   }
 
-  // LIVESTOCK
-  if (domain === "livestock" || q.includes("گائے") || q.includes("cow") || q.includes("goat")) {
+  // 3. LIVESTOCK / STOCKDOC
+  if (domain === "livestock") {
     if (isUrdu) {
-      return `🐄 **لائیوسٹاک ویٹرنری علاج (AZdoc Senior Vet)**
+      return `🐄 **لائیوسٹاک ویٹرنری رہنمائی (AZdoc StockDoc)**
 
-**دوائیں:**
-• **Inj. Oxytetracycline 200mg/ml:** 1ml فی 10kg وزن (IM)
-• **Inj. Meloxicam:** 1ml فی 20kg وزن (بخار و درد)
-• **Tympanol Powder (افارہ):** 100g پانی میں حل کر کے پلائیں
+• **بخار و سوجن:** Inj. Meloxicam (1ml فی 20kg وزن)
+• **انفیکشن:** Inj. Oxytetracycline 200 L.A. (1ml فی 10kg)
+• **افارہ (Bloat):** Tympanol powder یا میٹھا سوڈا 100g پانی میں حل کر کے پلائیں۔
 
-**ہیلپ لائن:** 0800-29000
-⚠️ *فوری ویٹرنری ڈاکٹر سے رابطہ کریں۔*`;
+📞 **ویٹرنری ہیلپ لائن:** 0800-29000`;
     }
+    return `🐄 **Livestock Veterinary Guidance (AZdoc StockDoc)**
+
+• **Fever & Pain:** Inj. Meloxicam (1ml per 20kg body weight IM).
+• **Bacterial Infections:** Inj. Oxytetracycline 200 L.A. (1ml per 10kg body weight).
+• **Bloat / Tympany:** Give 100g Sodium Bicarbonate or Tympanol powder in warm water.
+
+📞 **Livestock Helpline:** 0800-29000`;
   }
 
-  // CROP/PLANT
-  if (domain === "crop" || domain === "plant" || q.includes("گندم") || q.includes("plant") || q.includes("wheat")) {
+  // 4. PET / PETSDOC
+  if (domain === "pet") {
     if (isUrdu) {
-      return `🌾 **زرعی تشخیص و علاج (AZdoc Agronomist)**
+      return `🐕 **پالتو جانوروں کی صحت (AZdoc PetsDoc)**
 
-**بیماری کا علاج:**
-• **فنگل کنگی:** Nativo 75WG (65g/acre) اسپرے
-• **سست تیلہ:** Imidacloprid 200SL (100ml/100L)
-• **پتوں کی پیلاہٹ:** Zinc Sulphate 33% (6kg/acre) + Urea
-
-**زرعی ہیلپ لائن:** 0800-15000`;
+• **چیچر و خارش:** Simparica یا Bravecto گولی پالتو کے وزن کے مطابق دیں؛ Cothivet اسپرے زخموں پر لگائیں۔
+• **قے و پیچش:** ORS پانی میں ملا کر پلائیں؛ فوری ویٹرنری کلینک لے جائیں۔`;
     }
+    return `🐕 **Pet Health & Vet Care (AZdoc PetsDoc)**
+
+• **Ticks, Fleas & Mange:** Administer Simparica or Bravecto chewable per pet body weight; apply Cothivet topical spray.
+• **Vomiting & Diarrhea:** Keep hydrated with ORS solution; consult a vet if symptoms persist > 24h.`;
   }
 
-  // DEFAULT
+  // 5. HUMAN / HEALTHDOC
   if (isUrdu) {
-    return `🩺 **AZdoc AI طبی معاون**
+    return `🩺 **AZdoc AI طبی معاون (HealthDoc)**
 
 آپ کے سوال کی بنیاد پر رہنمائی:
 • اپنی علامات تفصیل سے بتائیں تاکہ بہتر تشخیص ہو سکے
 • کیمرے سے تصویر بھیجیں — فوری AI بصری تشخیص ملے گی
-• بخار یا انفیکشن: **Tab. Paracetamol 500mg** دن میں 3 بار
+• بخار یا جسم درد: **Tab. Paracetamol 500mg** دن میں 3 بار (کھانے کے بعد)
 
 **ایمرجنسی:** 1122 | **صحت:** 0800-88000
-⚠️ *یہ AI رہنمائی ہے — تصدیق کے لیے ڈاکٹر سے ملیں۔*`;
+⚠️ *یہ AI رہنمائی ہے — حتمی تصدیق کے لیے ڈاکٹر سے رجوع کریں۔*`;
   }
 
-  return `🩺 **AZdoc AI Clinical Assistant**
+  return `🩺 **AZdoc AI Clinical Assistant (HealthDoc)**
 
 Based on your query, here is our guidance:
-• Please describe your symptoms in detail for a more accurate diagnosis
+• Please describe your symptoms in detail for an accurate diagnosis
 • Use the 📷 Camera button to send a photo for instant AI visual analysis
-• For mild symptoms: **Paracetamol 500mg** every 6 hours after meals
+• For fever or mild pain: **Paracetamol 500mg** every 6 to 8 hours after meals
 
 **Emergency:** 1122 | **Health Helpline:** 0800-88000
 ⚠️ *AI guidance only — confirm with a licensed physician.*`;

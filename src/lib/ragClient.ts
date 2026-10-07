@@ -291,21 +291,31 @@ export function generateClientRAGAnswer(userQuery: string, lang: "en" | "ur" = "
         `🛍️ **Products:** ${item.localProducts.join(", ")}`;
   }
 
-  // 6. Fertilizer / Nitrogen / Urea / DAP
-  if (q.includes("fertilizer") || q.includes("dap") || q.includes("urea") || q.includes("کھاد")) {
+  // 6. Fertilizer / Nitrogen / Urea / DAP / NPK / Wheat dosage
+  if (
+    q.includes("fertilizer") || q.includes("dap") || q.includes("urea") ||
+    q.includes("khad") || q.includes("کھاد") || q.includes("npk") ||
+    (q.includes("wheat") && (q.includes("acre") || q.includes("dose") || q.includes("bag") || q.includes("recommend")))
+  ) {
     return isUr
-      ? `🌱 **فصلوں کی کھاد کا ماہرانہ چارٹ (پاکستان)** 🌱\n\n` +
-        `🌾 **گندم:** 1 بوری DAP + 1 بوری یوریا بوائی پر؛ 1 بوری یوریا پہلے پانی پر۔\n` +
-        `🍚 **دھان:** 1 بوری DAP تیاری پر؛ 1.5 بوری یوریا 3 اقساط میں۔\n` +
-        `🌱 **کپاس:** 1.5 بوری DAP + 2.5 بوری یوریا اقساط میں۔\n` +
-        `🍅 **سبزیاں:** گوبر کی پرانی کھاد + متوازن NPK 20:20:20۔\n\n` +
-        `⚠️ *ہمیشہ مٹی کا ٹیسٹ کروائیں اور تیز دھوپ میں یوریا مت چھٹائیں۔*`
-      : `🌱 **Fertilizer Dosage & Application Chart** 🌱\n\n` +
-        `🌾 **Wheat:** 1 bag DAP + 1 bag Urea at sowing; 1 bag Urea at 1st irrigation (20-25 days).\n` +
-        `🍚 **Rice:** 1 bag DAP at land prep; 1.5 bags Urea split across 3 applications.\n` +
-        `🌱 **Cotton:** 1.5 bags DAP + 2.5 bags Urea split during growth/flowering.\n` +
-        `🍅 **Vegetables:** Composted manure + Balanced NPK (20:20:20).\n\n` +
-        `⚠️ *Tip: Avoid broadcasting Urea on dry dry soil in hot sun to prevent ammonia loss.*`;
+      ? `🌾 **گندم و دیگر فصلوں کے لیے یوریا اور ڈی اے پی (DAP) فی ایکڑ سفارشات** 🌾\n\n` +
+        `📌 **گندم کی فصل (Wheat Crop):**\n` +
+        `• **بوائی کے وقت (At Sowing):** 1.5 سے 2 بوری DAP (75-100 کلوگرام) + 1 بوری SOP (پوٹاش) فی ایکڑ (بیج کے ساتھ ڈالیں)۔\n` +
+        `• **پہلا پانی (20-25 دن بعد — تاج جڑیں بنتے وقت):** 1 سے 1.25 بوری یوریا + 3 کلوگرام زنک سلفیٹ (33%) فی ایکڑ۔\n` +
+        `• **دوسرا پانی (40-45 دن بعد — گوبھ کی حالت):** 1 بوری یوریا فی ایکڑ۔\n\n` +
+        `🍚 **دھان (Rice/Paddy):** 1 بوری DAP تیاری پر + 1.5 بوری یوریا 3 مساوی اقساط میں۔\n` +
+        `🌱 **کپاس (Cotton):** 1.5 بوری DAP بوائی پر + 2.5 بوری یوریا نمو کے دوران۔\n` +
+        `🌽 **مکئی (Maize):** 2 بوری DAP + 2.5 بوری یوریا + 1 بوری پوٹاش فی ایکڑ۔\n\n` +
+        `💡 **زرعی مشورہ:** یوریا ہمیشہ وتر کی حالت میں یا پانی دینے سے فوراً پہلے چھٹائیں۔ کڑکی دھوپ میں یوریا مت ڈالیں۔`
+      : `🌾 **Recommended Urea & DAP Fertilizer per Acre for Wheat & Major Crops** 🌾\n\n` +
+        `📌 **Wheat Crop (گندم):**\n` +
+        `• **At Sowing Time (Basal Dose):** 1.5 to 2 bags DAP (75-100 kg) + 1 bag SOP (Potash 50 kg) per acre drilled with seed.\n` +
+        `• **1st Irrigation (20–25 days — Crown Root Stage):** 1 to 1.25 bags Urea (50-62.5 kg) + 3 kg Zinc Sulphate (33%) per acre.\n` +
+        `• **2nd Irrigation (40–45 days — Booting / Tillering Stage):** 1 bag Urea (50 kg) per acre.\n\n` +
+        `🍚 **Rice (دھان):** 1 bag DAP at land preparation + 1.5 bags Urea split across 3 equal applications.\n` +
+        `🌱 **Cotton (کپاس):** 1.5 bags DAP at sowing + 2.5 bags Urea split during vegetative growth and flowering.\n` +
+        `🌽 **Maize (مکئی):** 2 bags DAP + 2.5 bags Urea + 1 bag Potash (SOP) per acre.\n\n` +
+        `💡 **Agronomist Advice:** Always apply Urea when soil is in moist (*vattar*) condition or right before irrigation to prevent nitrogen gas evaporation.`;
   }
 
   } // ═══ end CROP/LIVESTOCK gate ═══

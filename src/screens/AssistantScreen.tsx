@@ -148,6 +148,8 @@ const ASSISTANT_CONTENT: Record<string, {
 };
 
 function extractPrescription(aiReply: string, domainId: string, domainName: string) {
+  if (domainId !== "human") return undefined;
+
   const lower = aiReply.toLowerCase();
   const hasMedicine = lower.includes("tab.") || lower.includes("mg") || lower.includes("ml") ||
     lower.includes("paracetamol") || lower.includes("پیراسیٹامول") || lower.includes("علاج") ||
