@@ -109,6 +109,24 @@ Founded and architected by **Abdullah Khalid** and **Abdullah Nadeem**, AZdoc br
 
 ---
 
+## 📚 Complete Software Engineering & Investor Pitch Documentation
+
+AZdoc includes production-grade technical and presentation documentation available both in Markdown and printable PDF formats:
+
+1. 📄 **[AZdoc Complete Software Engineering & UML Docs (PDF)](docs/AZdoc_Complete_Software_Engineering_and_UML_Docs.pdf)** | **[Markdown Version](docs/AZDOC_COMPLETE_SOFTWARE_ENGINEERING_DOCS.md)**
+   - Software Requirement Specification (SRS) - Functional & Non-Functional
+   - Tech Stack & System Architecture Breakdown
+   - Supabase PostgreSQL DDL Database Schema & Row-Level Security (RLS)
+   - Complete Catalog of API Endpoints & Method Calls
+   - 12 Complete UML Diagrams (Architecture, Use Case, DFD 0/1/2, 4 Sequence Diagrams, ERD, Component, Deployment, 2 State Machines, Activity Journey)
+
+2. 📄 **[AZdoc Startup Pitch Strategy & 500 Q&A Defense Manual (PDF)](docs/AZdoc_Startup_Pitch_and_500_QA_Defense_Manual.pdf)** | **[Markdown Version](docs/AZDOC_STARTUP_PITCH_AND_500_QA_DEFENSE_MANUAL.md)**
+   - 30-Sec Elevator Pitch, 3-Min Pitch Script, and 5-Min Product Demo Walkthrough
+   - In-depth Strategic Analysis across the **7 Startup Evaluation Criteria** (Problem Significance, Solution & Innovation, Market Opportunity, Business Model, Feasibility & Execution, Team Capability, Presentation & Communication)
+   - **500 Question & Answer Investor Defense Repository** organized across all 7 evaluation categories for competition defense & VC due diligence.
+
+---
+
 ## ⚙️ Quick Start & Local Installation
 
 ### Prerequisites
