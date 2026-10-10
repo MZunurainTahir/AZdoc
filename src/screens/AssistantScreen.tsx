@@ -27,8 +27,20 @@ import {
   Languages, FileText, Sparkles, X,
   Camera, Upload,
   AlertCircle, RotateCcw, ChevronDown, Wand2,
+  ShoppingCart, CheckCircle2,
 } from "lucide-react";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
+import { addToCart, MEDICINES } from "../lib/pharmacy";
+
+export interface PrescriptionData {
+  diagnosis: string;
+  medicines: string[];
+  precautions: string[];
+  doctorName: string;
+  slipTitle?: string;
+  domainId?: string;
+  catalogItemIds?: string[];
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -36,12 +48,7 @@ interface Message {
   id?: string;
   lang?: SupportedLanguage;
   imageUrl?: string;
-  prescription?: {
-    diagnosis: string;
-    medicines: string[];
-    precautions: string[];
-    doctorName: string;
-  };
+  prescription?: PrescriptionData;
 }
 
 const CHIPS_BY_LANG: Record<string, Record<string, { label: string; query: string }[]>> = {
@@ -146,49 +153,203 @@ const ASSISTANT_CONTENT: Record<string, {
   },
 };
 
-function extractPrescription(aiReply: string, domainId: string, domainName: string) {
-  if (domainId !== "human") return undefined;
+function extractPrescription(aiReply: string, domainId: string, domainName: string): PrescriptionData | undefined {
+  if (!aiReply || aiReply.length < 25) return undefined;
 
   const lower = aiReply.toLowerCase();
-  const hasMedicine = lower.includes("tab.") || lower.includes("mg") || lower.includes("ml") ||
-    lower.includes("paracetamol") || lower.includes("پیراسیٹامول") || lower.includes("علاج") ||
-    lower.includes("treatment") || lower.includes("syrup") || lower.includes("cream") ||
-    lower.includes("injection") || lower.includes("ٹیکہ") || lower.includes("دوا");
+  const hasMedicalOrAgri =
+    lower.includes("mg") || lower.includes("ml") || lower.includes("tab") ||
+    lower.includes("spray") || lower.includes("اسپرے") ||
+    lower.includes("dose") || lower.includes("dosage") || lower.includes("مقدار") ||
+    lower.includes("treatment") || lower.includes("علاج") ||
+    lower.includes("fertilizer") || lower.includes("کھاد") ||
+    lower.includes("urea") || lower.includes("dap") || lower.includes("یوریا") ||
+    lower.includes("fungicide") || lower.includes("pesticide") || lower.includes("کیڑے مار") ||
+    lower.includes("rust") || lower.includes("کنگی") || lower.includes("blight") ||
+    lower.includes("tilt") || lower.includes("nativo") || lower.includes("mancozeb") ||
+    lower.includes("deworm") || lower.includes("oxytetracycline") || lower.includes("ٹیکہ") ||
+    lower.includes("paracetamol") || lower.includes("panadol") || lower.includes("brufen") ||
+    lower.includes("medicine") || lower.includes("دوا") || lower.includes("پرہیز") ||
+    lower.includes("acre") || lower.includes("ایکڑ");
 
-  if (!hasMedicine) return undefined;
+  if (!hasMedicalOrAgri) return undefined;
 
   const lines = aiReply.split("\n");
   const medicines: string[] = [];
   const precautions: string[] = [];
 
-  for (const line of lines) {
-    const stripped = line.replace(/^[•\-*\d.]\s*/, "").trim();
+  for (const rawLine of lines) {
+    const stripped = rawLine.replace(/^[•\-*\d.)\]\s]+/, "").trim();
     if (!stripped || stripped.length < 5) continue;
-    if (
-      stripped.toLowerCase().includes("tab.") || stripped.toLowerCase().includes("mg") ||
-      stripped.toLowerCase().includes("syrup") || stripped.toLowerCase().includes("cream") ||
-      stripped.toLowerCase().includes("ml/") || stripped.includes("پیراسیٹامول") ||
-      stripped.includes("دوا") || stripped.toLowerCase().includes("inj.")
-    ) {
-      if (medicines.length < 6) medicines.push(stripped.slice(0, 100));
-    } else if (
-      stripped.toLowerCase().includes("avoid") || stripped.toLowerCase().includes("rest") ||
-      stripped.toLowerCase().includes("drink") || stripped.includes("پرہیز") ||
-      stripped.includes("آرام") || stripped.toLowerCase().includes("doctor") ||
-      stripped.includes("ڈاکٹر") || stripped.includes("احتیاط")
-    ) {
-      if (precautions.length < 5) precautions.push(stripped.slice(0, 100));
+    const strippedLower = stripped.toLowerCase();
+
+    const isMed =
+      strippedLower.includes("tab.") || strippedLower.includes("tablet") ||
+      strippedLower.includes("mg") || strippedLower.includes("ml/") || strippedLower.includes("ml ") ||
+      strippedLower.includes("syrup") || strippedLower.includes("cream") || strippedLower.includes("ointment") ||
+      strippedLower.includes("inj.") || strippedLower.includes("injection") ||
+      strippedLower.includes("paracetamol") || strippedLower.includes("panadol") || strippedLower.includes("brufen") ||
+      strippedLower.includes("flagyl") || strippedLower.includes("zyrtec") || strippedLower.includes("augmentin") ||
+      strippedLower.includes("ors") ||
+      strippedLower.includes("spray") || strippedLower.includes("اسپرے") ||
+      strippedLower.includes("tilt") || strippedLower.includes("nativo") || strippedLower.includes("propiconazole") ||
+      strippedLower.includes("mancozeb") || strippedLower.includes("tebuconazole") || strippedLower.includes("imidacloprid") ||
+      strippedLower.includes("urea") || strippedLower.includes("dap") || strippedLower.includes("کھاد") ||
+      strippedLower.includes("kg/acre") || strippedLower.includes("ml/acre") || strippedLower.includes("gm/acre") ||
+      strippedLower.includes("فی ایکڑ") || strippedLower.includes("گولی") || strippedLower.includes("ٹیکہ") ||
+      strippedLower.includes("oxytetracycline") || strippedLower.includes("oxfendazole") || strippedLower.includes("dewormer") ||
+      strippedLower.includes("neem oil") || strippedLower.includes("vermicompost");
+
+    const isPrec =
+      strippedLower.includes("avoid") || strippedLower.includes("prevent") ||
+      strippedLower.includes("rest") || strippedLower.includes("interval") ||
+      strippedLower.includes("harvest interval") || strippedLower.includes("water") ||
+      strippedLower.includes("consult") || strippedLower.includes("caution") ||
+      stripped.includes("پرہیز") || stripped.includes("احتیاط") || stripped.includes("آرام") ||
+      stripped.includes("ڈاکٹر سے رجوع");
+
+    if (isMed && !isPrec && medicines.length < 5) {
+      const clean = stripped.replace(/\*\*/g, "").slice(0, 110);
+      if (!medicines.some(m => m.toLowerCase().includes(clean.toLowerCase().slice(0, 20)))) {
+        medicines.push(clean);
+      }
+    } else if (isPrec && precautions.length < 4) {
+      const clean = stripped.replace(/\*\*/g, "").slice(0, 120);
+      precautions.push(clean);
     }
   }
 
-  if (medicines.length === 0) medicines.push(domainId === "human" ? "Tab. Paracetamol 500mg — 1 TDS after meals" : "Consult local veterinary store for appropriate medication");
-  if (precautions.length === 0) precautions.push("Consult a licensed doctor/vet if condition worsens", "Maintain hydration and adequate rest");
+  const catalogItemIds: string[] = [];
+  let doctorName = "Dr. AZdoc AI Medical Board (MBBS/MD)";
+  let slipTitle = "🩺 Clinical Prescription Slip (Rx) — AZdoc AI";
+  let defaultDiagnosis = `${domainName} Health Evaluation — AZdoc AI`;
+
+  if (domainId === "crop") {
+    doctorName = "Dr. AZdoc Agri Board — Crop Protection Specialist";
+    slipTitle = "🌾 Agri Prescription Slip (Rx) — Crop Protection";
+    if (lower.includes("rust") || lower.includes("کنگی")) {
+      defaultDiagnosis = "Wheat Yellow / Brown Rust (Puccinia striiformis) — گندم کی کنگی";
+      catalogItemIds.push("crp-tilt", "crp-nativo");
+    } else if (lower.includes("fertiliz") || lower.includes("کھاد") || lower.includes("urea") || lower.includes("dap")) {
+      defaultDiagnosis = "Crop Nutritional Management & Fertilizer Protocol";
+      catalogItemIds.push("crp-dap", "crp-urea");
+    } else {
+      defaultDiagnosis = "FasalDoc Crop Health & Agro Protection Protocol";
+      catalogItemIds.push("crp-tilt", "crp-urea");
+    }
+
+    if (medicines.length === 0) {
+      if (lower.includes("rust") || lower.includes("کنگی")) {
+        medicines.push(
+          "Tilt 250 EC (Propiconazole Syngenta) — 200-250 ml in 100L water per acre spray",
+          "Nativo 75 WG (Bayer) — 65g per acre spray alternate foliar application"
+        );
+      } else {
+        medicines.push(
+          "Tilt 250 EC / Crop Protection Fungicide — 250ml per acre spray",
+          "Sona Urea / DAP — Balanced dosage per acre application"
+        );
+      }
+    }
+    if (precautions.length === 0) {
+      precautions.push(
+        "Spray early morning or late afternoon during low wind conditions",
+        "Wait at least 14 days after last spray before harvesting",
+        "Use clean water without alkaline salts for chemical tank mixing"
+      );
+    }
+  } else if (domainId === "livestock") {
+    doctorName = "Dr. Veterinary Board — AZdoc Livestock Care (DVM)";
+    slipTitle = "🐄 Veterinary Prescription Slip (Rx) — Livestock Care";
+    defaultDiagnosis = "Veterinary Clinical Diagnosis & Treatment Plan";
+    catalogItemIds.push("liv-oxy-inject", "liv-oxfendazole");
+
+    if (medicines.length === 0) {
+      medicines.push(
+        "Oxytetracycline LA 200mg/ml Injection — 1ml/10kg body weight deep IM",
+        "Oxfendazole Broad-Spectrum Dewormer — 1ml/5kg body weight orally"
+      );
+    }
+    if (precautions.length === 0) {
+      precautions.push(
+        "Isolate sick animals and provide fresh clean drinking water",
+        "Observe 28-day meat and 7-day milk withdrawal period"
+      );
+    }
+  } else if (domainId === "pet") {
+    doctorName = "Dr. AZdoc Pet Care Specialist (BVMS)";
+    slipTitle = "🐾 Pet Care Prescription Slip (Rx) — Small Animals";
+    defaultDiagnosis = "Pet Health & Veterinary Diagnosis";
+    catalogItemIds.push("pet-deworm-tab", "pet-mange-shampoo");
+
+    if (medicines.length === 0) {
+      medicines.push(
+        "Drontal Allwormer Pet Tablets — 1 tablet per 10kg body weight",
+        "Medicated Anti-Tick & Mange Cleansing Shampoo — Wash 2x weekly"
+      );
+    }
+    if (precautions.length === 0) {
+      precautions.push(
+        "Ensure pet remains well hydrated in a cool, clean environment",
+        "Keep other household pets separated until fully evaluated"
+      );
+    }
+  } else if (domainId === "plant") {
+    doctorName = "Botanical Specialist — AZdoc Plant & Garden Care";
+    slipTitle = "🌿 Botanical Care Prescription Slip (Rx)";
+    defaultDiagnosis = "Plant Pathology & Botanical Assessment";
+    catalogItemIds.push("plt-neem-oil", "plt-fungicide");
+
+    if (medicines.length === 0) {
+      medicines.push(
+        "Cold-Pressed Organic Neem Oil Spray — 5ml/L water with mild soap",
+        "Copper Oxychloride / Mancozeb Fungicide — 2g/L water foliar spray"
+      );
+    }
+    if (precautions.length === 0) {
+      precautions.push(
+        "Avoid over-watering and ensure adequate pot drainage holes",
+        "Spray underside of leaves during early morning hours"
+      );
+    }
+  } else {
+    // human
+    doctorName = "Dr. AZdoc AI Medical Board (MBBS/MD)";
+    slipTitle = "🩺 Clinical Prescription Slip (Rx) — AZdoc AI";
+    defaultDiagnosis = "Clinical Assessment & Prescription — AZdoc AI";
+    catalogItemIds.push("hum-paracetamol", "hum-ors");
+
+    if (medicines.length === 0) {
+      medicines.push(
+        "Tab. Paracetamol 500mg (Panadol/Calpol) — 1-2 tablets TID after meals",
+        "ORS Hydration Sachets — Dissolve 1 sachet in 1 liter clean water"
+      );
+    }
+    if (precautions.length === 0) {
+      precautions.push(
+        "Maintain adequate hydration with clean water, soup and electrolytes",
+        "Rest and consult a licensed physician if high fever persists > 48h"
+      );
+    }
+  }
+
+  let extractedDiagnosis = defaultDiagnosis;
+  for (const l of lines.slice(0, 4)) {
+    const cleanL = l.replace(/^[#*•\-\d.]\s*/, "").replace(/\*\*/g, "").trim();
+    if (cleanL.length > 5 && cleanL.length < 80 && !cleanL.toLowerCase().includes("assalam") && !cleanL.toLowerCase().includes("hello")) {
+      extractedDiagnosis = cleanL;
+      break;
+    }
+  }
 
   return {
-    diagnosis: domainId === "human" ? "Clinical Assessment — AZdoc AI" : `${domainName} Health Evaluation`,
+    diagnosis: extractedDiagnosis,
     medicines,
     precautions,
-    doctorName: "Dr. AZdoc AI Medical Board",
+    doctorName,
+    slipTitle,
+    domainId,
+    catalogItemIds,
   };
 }
 
@@ -227,7 +388,62 @@ export default function AssistantScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeSession, setActiveSession] = useState<string | null>(null);
   const [speakingMsgId, setSpeakingMsgId] = useState<number | null>(null);
-  const [activePrescription, setActivePrescription] = useState<any | null>(null);
+  const [activePrescription, setActivePrescription] = useState<PrescriptionData | null>(null);
+
+  const handleOrderSpecificItem = (medText: string) => {
+    const lower = medText.toLowerCase();
+    const matched = MEDICINES.find(m => {
+      const mName = m.name.toLowerCase();
+      return (
+        (lower.includes("tilt") && m.id === "crp-tilt") ||
+        (lower.includes("nativo") && m.id === "crp-nativo") ||
+        (lower.includes("urea") && m.id === "crp-urea") ||
+        (lower.includes("dap") && m.id === "crp-dap") ||
+        (lower.includes("trap") && m.id === "crp-trap") ||
+        (lower.includes("paracetamol") && m.id === "hum-paracetamol") ||
+        (lower.includes("panadol") && m.id === "hum-paracetamol") ||
+        (lower.includes("brufen") && m.id === "hum-brufen") ||
+        (lower.includes("ibuprofen") && m.id === "hum-brufen") ||
+        (lower.includes("flagyl") && m.id === "hum-flagyl") ||
+        (lower.includes("zyrtec") && m.id === "hum-zyrtec") ||
+        (lower.includes("augmentin") && m.id === "hum-augmentin") ||
+        (lower.includes("ors") && m.id === "hum-ors") ||
+        (lower.includes("oxfendazole") && m.id === "liv-oxfendazole") ||
+        (lower.includes("oxytetracycline") && m.id === "liv-oxy-inject") ||
+        (lower.includes("drontal") && m.id === "pet-deworm-tab") ||
+        (lower.includes("shampoo") && m.id === "pet-mange-shampoo") ||
+        (lower.includes("neem") && m.id === "plt-neem-oil") ||
+        (lower.includes("mancozeb") && m.id === "plt-fungicide") ||
+        (m.domain === domainId && (mName.split(" ")[0].length > 3 && lower.includes(mName.split(" ")[0])))
+      );
+    });
+
+    if (matched) {
+      addToCart(matched.id, 1);
+    } else {
+      if (domainId === "crop") addToCart("crp-tilt", 1);
+      else if (domainId === "livestock") addToCart("liv-oxy-inject", 1);
+      else if (domainId === "pet") addToCart("pet-deworm-tab", 1);
+      else if (domainId === "plant") addToCart("plt-neem-oil", 1);
+      else addToCart("hum-paracetamol", 1);
+    }
+    setActivePrescription(null);
+    navigate("/pharmacy");
+  };
+
+  const handleOrderOnPharmacy = (prescription?: PrescriptionData) => {
+    if (prescription?.catalogItemIds && prescription.catalogItemIds.length > 0) {
+      prescription.catalogItemIds.forEach(id => addToCart(id, 1));
+    } else {
+      if (domainId === "crop") { addToCart("crp-tilt", 1); addToCart("crp-urea", 1); }
+      else if (domainId === "livestock") { addToCart("liv-oxy-inject", 1); }
+      else if (domainId === "pet") { addToCart("pet-deworm-tab", 1); }
+      else if (domainId === "plant") { addToCart("plt-neem-oil", 1); }
+      else { addToCart("hum-paracetamol", 1); addToCart("hum-ors", 1); }
+    }
+    setActivePrescription(null);
+    navigate("/pharmacy");
+  };
 
   // Camera state
   const [showCamera, setShowCamera] = useState(false);
@@ -591,12 +807,97 @@ export default function AssistantScreen() {
               )}
 
               {msg.prescription && (
-                <div className="mt-3 pt-2.5 border-t border-border/60">
-                  <button onClick={() => setActivePrescription(msg.prescription)}
-                    className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 text-emerald-600 text-xs font-bold flex items-center justify-between hover:bg-emerald-500/20 transition-all">
-                    <span className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />View Prescription Slip (Rx)</span>
-                    <span className="text-[10px] uppercase underline">Open →</span>
-                  </button>
+                <div className="mt-3.5 pt-3 border-t border-border/80 space-y-2.5">
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-emerald-500/10 border border-emerald-500/30 space-y-2.5 shadow-xs">
+                    {/* Slip Header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                          Rx
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-text-primary flex items-center gap-1">
+                            {msg.prescription.slipTitle || "Prescription Slip (Rx)"}
+                          </h4>
+                          <p className="text-[10px] text-emerald-600 font-medium">
+                            {msg.prescription.doctorName}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>{selectedLang === "ur" ? "تصدیق شدہ" : "Verified Rx"}</span>
+                      </span>
+                    </div>
+
+                    {/* Diagnosis / Assessment */}
+                    <div className="text-[11px] bg-bg-surface/90 rounded-xl px-2.5 py-1.5 border border-border/60">
+                      <span className="text-text-muted font-bold text-[10px] uppercase">
+                        {selectedLang === "ur" ? "تشخیص: " : "Assessment: "}
+                      </span>
+                      <span className="text-text-primary font-bold">
+                        {msg.prescription.diagnosis}
+                      </span>
+                    </div>
+
+                    {/* Prescribed Items */}
+                    <div className="space-y-1.5 pt-0.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase">
+                        {domainId === "crop"
+                          ? (selectedLang === "ur" ? "تجویز کردہ اسپرے اور کھادیں:" : "Prescribed Sprays, Fertilizers & Dosages:")
+                          : domainId === "livestock"
+                          ? (selectedLang === "ur" ? "تجویز کردہ ادویات اور ٹیکے:" : "Prescribed Veterinary Doses & Injections:")
+                          : (selectedLang === "ur" ? "تجویز کردہ ادویات اور مقدار:" : "Prescribed Medicines & Dosage:")}
+                      </p>
+                      {msg.prescription.medicines.map((m, mIdx) => (
+                        <div
+                          key={mIdx}
+                          className="flex items-center justify-between gap-2 p-2 rounded-xl bg-bg-surface/90 border border-emerald-500/20 text-xs text-text-primary shadow-2xs hover:border-emerald-500/40 transition-all"
+                        >
+                          <div className="flex items-start gap-1.5 min-w-0">
+                            <span className="text-emerald-600 font-bold shrink-0 text-sm">
+                              {domainId === "crop" ? "🌾" : domainId === "livestock" ? "🐄" : domainId === "pet" ? "🐾" : domainId === "plant" ? "🌿" : "💊"}
+                            </span>
+                            <span className="font-semibold text-xs leading-snug break-words">
+                              {m}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleOrderSpecificItem(m)}
+                            title="Add to cart & order"
+                            className="shrink-0 px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+                          >
+                            <ShoppingCart className="w-3 h-3" />
+                            <span>{selectedLang === "ur" ? "آرڈر کریں" : "Order"}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Order Now Call-To-Action Button */}
+                    <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                      <button
+                        onClick={() => handleOrderOnPharmacy(msg.prescription)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-all"
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                        <span>
+                          {domainId === "crop"
+                            ? (selectedLang === "ur" ? "فارمیسی سے کیڑے مار دوائیں / کھاد منگوائیں →" : "Order on Agri Pharmacy Radar →")
+                            : domainId === "livestock"
+                            ? (selectedLang === "ur" ? "ویٹرنری اسٹور سے ادویات منگوائیں →" : "Order on Veterinary Pharmacy Radar →")
+                            : (selectedLang === "ur" ? "فارمیسی سے دوائیاں منگوائیں (کیش آن ڈیلیوری) →" : "Order Medicines on Pharmacy Radar →")}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setActivePrescription(msg.prescription ?? null)}
+                        className="py-2 px-3 rounded-xl bg-bg-surface hover:bg-bg-elevated border border-border text-text-primary text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-text-muted" />
+                        <span>{selectedLang === "ur" ? "مکمل پرچی" : "Full Slip"}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -750,7 +1051,9 @@ export default function AssistantScreen() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-500/20">Rx</div>
                 <div>
-                  <h3 className="font-heading font-bold text-sm text-text-primary">Medical Prescription Slip</h3>
+                  <h3 className="font-heading font-bold text-sm text-text-primary">
+                    {activePrescription.slipTitle || "Medical Prescription Slip"}
+                  </h3>
                   <p className="text-[10px] text-text-muted">{activePrescription.doctorName}</p>
                 </div>
               </div>
@@ -765,12 +1068,16 @@ export default function AssistantScreen() {
                 <p className="font-bold text-text-primary mt-0.5">{activePrescription.diagnosis}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-text-muted uppercase mb-1.5">Prescribed Medicines & Dosage:</p>
+                <p className="text-[10px] font-bold text-text-muted uppercase mb-1.5">
+                  {domainId === "crop" ? "Prescribed Sprays, Fertilizers & Dosages:" : "Prescribed Medicines & Dosage:"}
+                </p>
                 <div className="space-y-1.5">
                   {activePrescription.medicines.map((m: string, idx: number) => (
                     <div key={idx} className="p-2.5 rounded-xl bg-primary/5 border border-primary/20 text-text-primary font-medium flex items-center justify-between">
-                      <span>💊 {m}</span>
-                      <button onClick={() => { setActivePrescription(null); navigate("/pharmacy"); }}
+                      <span className="leading-snug pr-2">
+                        {domainId === "crop" ? "🌾" : domainId === "livestock" ? "🐄" : domainId === "pet" ? "🐾" : domainId === "plant" ? "🌿" : "💊"} {m}
+                      </span>
+                      <button onClick={() => handleOrderSpecificItem(m)}
                         className="text-[10px] font-bold text-primary hover:underline shrink-0">Order →</button>
                     </div>
                   ))}
@@ -785,9 +1092,12 @@ export default function AssistantScreen() {
             </div>
 
             <div className="pt-2 flex gap-2">
-              <button onClick={() => { setActivePrescription(null); navigate("/pharmacy"); }}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors">
-                Order Medicines Now
+              <button onClick={() => handleOrderOnPharmacy(activePrescription)}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors flex items-center justify-center gap-2 shadow-md">
+                <ShoppingCart className="w-4 h-4" />
+                <span>
+                  {domainId === "crop" ? "Order on Agri Pharmacy Radar" : "Order on Pharmacy Radar"}
+                </span>
               </button>
               <button onClick={() => setActivePrescription(null)}
                 className="px-4 py-2.5 rounded-xl bg-bg-secondary text-text-primary text-xs font-bold">Close</button>
