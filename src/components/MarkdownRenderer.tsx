@@ -48,29 +48,34 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     const flushTable = (keyPrefix: string) => {
       if (tableRows.length > 0) {
         const header = tableRows[0];
+        const colCount = header.length;
         const rows = tableRows.slice(1);
         elements.push(
-          <div key={`${keyPrefix}-table`} className="my-3 overflow-x-auto rounded-xl border border-border bg-bg-secondary/40 p-1">
-            <table className="w-full text-xs text-left border-collapse">
+          <div key={`${keyPrefix}-table`} className="my-3 overflow-x-auto rounded-xl border border-border shadow-sm">
+            <table className="min-w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-primary/10 border-b border-border">
+                <tr className="bg-primary/15 border-b-2 border-primary/30">
                   {header.map((col, idx) => (
-                    <th key={idx} className="px-3 py-2 font-bold text-primary">
+                    <th key={idx} className="px-3 py-2.5 font-bold text-primary whitespace-nowrap border-r border-primary/10 last:border-r-0">
                       {formatInline(col)}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, rIdx) => (
-                  <tr key={rIdx} className="border-b border-border/40 hover:bg-bg-elevated/50 transition-colors">
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx} className="px-3 py-2 text-text-primary">
-                        {formatInline(cell)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {rows.map((row, rIdx) => {
+                  // Normalize row to always have colCount cells
+                  const normalized = Array.from({ length: colCount }, (_, i) => row[i] ?? '');
+                  return (
+                    <tr key={rIdx} className={`border-b border-border/40 transition-colors ${rIdx % 2 === 0 ? 'bg-bg-elevated/30' : 'bg-bg-secondary/20'} hover:bg-primary/5`}>
+                      {normalized.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-3 py-2 text-text-primary align-top border-r border-border/20 last:border-r-0">
+                          {formatInline(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -83,14 +88,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     lines.forEach((line, index) => {
       const trimmed = line.trim();
 
-      // Table line detect
+      // Table line detect — must start AND end with |
       if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
         flushList(`line-${index}`);
         const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
-        // Ignore separator row like |---|---|
-        if (cells.every(c => /^[-:]+$/.test(c))) {
-          return;
-        }
+        // Skip separator rows like |---|---|
+        if (cells.every(c => /^[-:\s]+$/.test(c))) return;
         inTable = true;
         tableRows.push(cells);
         return;

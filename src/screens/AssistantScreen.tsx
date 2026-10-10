@@ -179,6 +179,10 @@ function extractPrescription(aiReply: string, domainId: string, domainName: stri
   const precautions: string[] = [];
 
   for (const rawLine of lines) {
+    const trimmedRaw = rawLine.trim();
+    // Skip markdown table rows and separator rows — they start with |
+    if (trimmedRaw.startsWith("|")) continue;
+
     const stripped = rawLine.replace(/^[•\-*\d.)\]\s]+/, "").trim();
     if (!stripped || stripped.length < 5) continue;
     const strippedLower = stripped.toLowerCase();
