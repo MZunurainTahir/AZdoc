@@ -10,7 +10,7 @@ import { playTextToSpeech, stopTextToSpeech, startVoiceRecording, type VoiceReco
 import {
   Camera, Upload, ArrowLeft, Leaf, AlertTriangle,
   CheckCircle, Info, Sparkles, ScanLine, Volume2, VolumeX,
-  Mic, MicOff, Loader2,
+  Mic, MicOff,
   FlaskConical, ShieldCheck, Tag, PackageCheck,
 } from "lucide-react";
 import { useDomain } from "../context/DomainContext";

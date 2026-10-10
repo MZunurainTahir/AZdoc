@@ -18,7 +18,6 @@ const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY as string | undefined;
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
-const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY) as string | undefined;
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
@@ -160,10 +159,35 @@ Current consultation domain: ${domain}`;
     content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
   }));
 
-  // 1. DeepSeek API (PRIMARY — direct endpoint if genuine sk- key)
+  // 1. Primary: Serverless Backend /api/chat (running DeepSeek V3 on Vercel)
+  try {
+    console.log("[deepseekClient] Attempting /api/chat serverless backend...");
+    const backendRes = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: simpleMessages,
+        lang,
+        domain,
+      }),
+      signal: AbortSignal.timeout(18000),
+    });
+    if (backendRes.ok) {
+      const data = await backendRes.json();
+      const reply = data?.reply as string | undefined;
+      if (reply && reply.trim().length > 20) {
+        console.log("[deepseekClient] ✅ /api/chat backend response received");
+        return reply.trim();
+      }
+    }
+  } catch (backendErr) {
+    console.warn("[deepseekClient] /api/chat backend failed, trying direct providers:", backendErr);
+  }
+
+  // 2. DeepSeek API (direct endpoint if genuine sk- key provided)
   if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY.startsWith("sk-")) {
     try {
-      console.log("[DeepSeek] Attempting DeepSeek Chat (PRIMARY)...");
+      console.log("[DeepSeek] Attempting DeepSeek Chat (direct)...");
       const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
@@ -212,7 +236,7 @@ Current consultation domain: ${domain}`;
           temperature: 0.3,
           max_tokens: 2000,
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(9000),
       });
       if (res.ok) {
         const data = await res.json();
@@ -248,7 +272,7 @@ Current consultation domain: ${domain}`;
             temperature: 0.3,
             max_tokens: 2000,
           }),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(7000),
         });
         if (res.ok) {
           const data = await res.json();
@@ -285,7 +309,7 @@ Current consultation domain: ${domain}`;
           temperature: 0.3,
           max_tokens: 2000,
         }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(7000),
       });
       if (res.ok) {
         const data = await res.json();
@@ -305,7 +329,7 @@ Current consultation domain: ${domain}`;
     console.log("[Pollinations] Attempting free LLM endpoint...");
     const promptText = encodeURIComponent(`${fullSystem}\n\nUser Question: ${userMessage}`);
     const polRes = await fetch(`https://text.pollinations.ai/${promptText}?model=openai&system=${encodeURIComponent(fullSystem)}`, {
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(4000),
     });
     if (polRes.ok) {
       const reply = await polRes.text();
