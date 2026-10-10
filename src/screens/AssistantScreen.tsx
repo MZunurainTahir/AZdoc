@@ -430,10 +430,11 @@ export default function AssistantScreen() {
 
       const prescription = extractPrescription(aiReply, domainId, domain.name);
       const aiMsg: Message = { role: "assistant", content: aiReply, lang: selectedLang, prescription };
+      const newMsgIndex = messages.length + 1;
       setMessages(prev => [...prev, aiMsg]);
 
       playTextToSpeech(aiReply, selectedLang,
-        () => setSpeakingMsgId(messages.length + 1),
+        () => setSpeakingMsgId(newMsgIndex),
         () => setSpeakingMsgId(null),
         () => setSpeakingMsgId(null)
       );

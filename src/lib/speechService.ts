@@ -434,19 +434,28 @@ export async function playTextToSpeech(
 ): Promise<void> {
   stopTextToSpeech();
 
-  // Clean markdown syntax for cleaner voice reading
+  // Clean markdown syntax for cleaner, natural voice reading
   const cleanText = text
-    .replace(/[#*_`~>-]/g, "")
+    .replace(/[#*_`~>|]/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/\n{2,}/g, ". ")
     .replace(/\n/g, " ")
-    .slice(0, 1200);
+    .replace(/\s+/g, " ")
+    .trim();
 
-  // 1. Try ElevenLabs API (best quality, multilingual)
+  // For instant responsive speech without stalls, synthesize the primary advice (up to 380 chars)
+  let speechText = cleanText;
+  if (cleanText.length > 380) {
+    const cut = cleanText.slice(0, 380);
+    const lastPunct = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("۔ "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    speechText = lastPunct > 120 ? cut.slice(0, lastPunct + 1) : cut;
+  }
+
+  // 1. Try ElevenLabs API (best quality, multilingual, ultra-low latency)
   if (ELEVENLABS_API_KEY && ELEVENLABS_API_KEY.length > 20) {
     try {
       const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
+        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream?optimize_streaming_latency=4`,
         {
           method: "POST",
           headers: {
@@ -454,12 +463,12 @@ export async function playTextToSpeech(
             "xi-api-key": ELEVENLABS_API_KEY,
           },
           body: JSON.stringify({
-            text: cleanText,
-            model_id: "eleven_multilingual_v2",
+            text: speechText,
+            model_id: "eleven_turbo_v2_5",
             voice_settings: {
-              stability: 0.45,
+              stability: 0.5,
               similarity_boost: 0.8,
-              style: 0.1,
+              style: 0.0,
               use_speaker_boost: true,
             },
           }),
@@ -478,9 +487,12 @@ export async function playTextToSpeech(
           onEnd?.();
         };
         audio.onerror = () => {
-          fallbackWebSpeech(cleanText, lang, onStart, onEnd, onError);
+          fallbackWebSpeech(speechText, lang, onStart, onEnd, onError);
         };
-        await audio.play();
+        audio.play().catch((err) => {
+          console.warn("[Voice] Play failed, using Web Speech:", err);
+          fallbackWebSpeech(speechText, lang, onStart, onEnd, onError);
+        });
         return;
       }
     } catch (err) {
@@ -489,7 +501,7 @@ export async function playTextToSpeech(
   }
 
   // 2. Web Speech Synthesis Fallback
-  fallbackWebSpeech(cleanText, lang, onStart, onEnd, onError);
+  fallbackWebSpeech(speechText, lang, onStart, onEnd, onError);
 }
 
 function fallbackWebSpeech(

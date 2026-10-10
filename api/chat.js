@@ -41,9 +41,79 @@ export default async function handler(req, res) {
       })),
     ];
 
+const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+
     let reply = "";
 
-    // 1. Try OpenAI (only if genuine sk- key)
+    // 1. Ultra-Fast: Groq LPU (responds in 500ms - 1000ms)
+    if (GROQ_API_KEY) {
+      const groqModels = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
+      for (const model of groqModels) {
+        try {
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model,
+              messages: fullMessages,
+              temperature: 0.3,
+              max_tokens: 700,
+            }),
+            signal: AbortSignal.timeout(6000),
+          });
+
+          if (groqRes.ok) {
+            const data = await groqRes.json();
+            reply = data?.choices?.[0]?.message?.content || "";
+            if (reply && reply.trim().length > 20) {
+              return res.status(200).json({ reply: reply.trim(), source: "groq_fast" });
+            }
+          }
+        } catch (groqErr) {
+          console.warn(`[api/chat] Groq ${model} error:`, groqErr.message);
+        }
+      }
+    }
+
+    // 2. OpenRouter Fast Track (GPT-4o-mini in 1.1s or DeepSeek V3 in 1.5s)
+    if (OPENROUTER_API_KEY) {
+      const orModels = ["openai/gpt-4o-mini", "deepseek/deepseek-chat"];
+      for (const model of orModels) {
+        try {
+          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+              "HTTP-Referer": "https://azdoc.vercel.app",
+              "X-Title": "AZdoc Fast Doctor",
+            },
+            body: JSON.stringify({
+              model,
+              messages: fullMessages,
+              temperature: 0.3,
+              max_tokens: 700,
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            reply = data?.choices?.[0]?.message?.content || "";
+            if (reply && reply.trim().length > 20) {
+              return res.status(200).json({ reply: reply.trim(), source: "openrouter" });
+            }
+          }
+        } catch (orErr) {
+          console.warn(`[api/chat] OpenRouter ${model} error:`, orErr.message);
+        }
+      }
+    }
+
+    // 3. OpenAI (only if genuine sk- key)
     if (OPENAI_API_KEY && OPENAI_API_KEY.startsWith("sk-") && !OPENAI_API_KEY.startsWith("sk-or-")) {
       try {
         const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -56,66 +126,20 @@ export default async function handler(req, res) {
             model: "gpt-4o-mini",
             messages: fullMessages,
             temperature: 0.3,
-            max_tokens: 2000,
+            max_tokens: 700,
           }),
+          signal: AbortSignal.timeout(8000),
         });
 
         if (openaiRes.ok) {
           const openaiData = await openaiRes.json();
           reply = openaiData?.choices?.[0]?.message?.content || "";
           if (reply && reply.length > 20) {
-            return res.status(200).json({ reply, source: "ai" });
+            return res.status(200).json({ reply: reply.trim(), source: "openai" });
           }
         }
       } catch (openaiErr) {
         console.warn("[api/chat] OpenAI failed:", openaiErr.message);
-      }
-    }
-
-    // 2. OpenRouter DeepSeek V3 (Authentic DeepSeek Chat)
-    if (OPENROUTER_API_KEY) {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "deepseek/deepseek-chat",
-          messages: fullMessages,
-          temperature: 0.3,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        reply = data?.choices?.[0]?.message?.content || "Thank you for consulting AZdoc AI.";
-        if (reply && reply.length > 20) {
-          return res.status(200).json({ reply, source: "ai" });
-        }
-      } else {
-        const errText = await response.text();
-        console.warn("[api/chat] OpenRouter DeepSeek error, trying gpt-4o-mini:", errText);
-        // Fallback to gpt-4o-mini on OpenRouter
-        const fallbackRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-4o-mini",
-            messages: fullMessages,
-            temperature: 0.3,
-            max_tokens: 2000,
-          }),
-        });
-        if (fallbackRes.ok) {
-          const fbData = await fallbackRes.json();
-          reply = fbData?.choices?.[0]?.message?.content || "Thank you for consulting AZdoc AI.";
-          return res.status(200).json({ reply, source: "ai" });
-        }
       }
     }
 
