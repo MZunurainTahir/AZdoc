@@ -104,8 +104,8 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
 const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY as string | undefined;
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
 
-// High-quality multilingual ElevenLabs voice
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel
+// High-quality multilingual ElevenLabs premade voice (works on standard tier)
+const ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Sarah - Mature, Reassuring, Confident
 
 let currentAudio: HTMLAudioElement | null = null;
 

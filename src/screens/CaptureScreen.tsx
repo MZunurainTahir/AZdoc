@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -6,9 +6,11 @@ import { supabase } from "../lib/supabase";
 import { isOnline, enqueueSync, db, generateLocalId } from "../lib/db";
 import { REMEDY_DATABASE } from "../lib/remedyData";
 import { requestDiagnosis } from "../lib/api";
+import { playTextToSpeech, stopTextToSpeech, startVoiceRecording, type VoiceRecorder } from "../lib/speechService";
 import {
   Camera, Upload, ArrowLeft, Leaf, AlertTriangle,
-  CheckCircle, Info, Sparkles, ScanLine, Volume2,
+  CheckCircle, Info, Sparkles, ScanLine, Volume2, VolumeX,
+  Mic, MicOff, Loader2,
   FlaskConical, ShieldCheck, Tag, PackageCheck,
 } from "lucide-react";
 import { useDomain } from "../context/DomainContext";
@@ -438,19 +440,80 @@ export default function CaptureScreen() {
     setIsAnalyzing(false);
   }, [capturedImage, mode, user]);
 
-  // Voice TTS for diagnosis
-  const speakDiagnosis = useCallback(() => {
-    if (!result || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  // Voice Agent for Scan & Diagnose (TTS + Dictation)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isRecordingNotes, setIsRecordingNotes] = useState(false);
+  const notesRecorderRef = useRef<VoiceRecorder | null>(null);
+
+  // Stop audio and recording on unmount
+  useEffect(() => {
+    return () => {
+      stopTextToSpeech();
+      notesRecorderRef.current?.stop();
+    };
+  }, []);
+
+  const toggleSpeakDiagnosis = useCallback(() => {
+    if (isSpeaking) {
+      stopTextToSpeech();
+      setIsSpeaking(false);
+      return;
+    }
+    if (!result) return;
     const remedyInfo = result.remedyKey ? REMEDY_DATABASE[result.remedyKey] : null;
+    const diseaseName = (lang === "ur" && remedyInfo?.nameUrdu) ? remedyInfo.nameUrdu : result.disease;
+    const treatmentText = (lang === "ur" && remedyInfo?.organicUrdu) ? remedyInfo.organicUrdu : (remedyInfo?.organic || result.remedy);
+    
     const text = lang === "ur"
-      ? `${remedyInfo?.nameUrdu || result.disease}۔ علاج: ${remedyInfo?.organicUrdu || result.remedy}`
-      : `${result.disease}. Treatment: ${remedyInfo?.organic || result.remedy}`;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang === "ur" ? "ur-PK" : "en-US";
-    utterance.rate = 0.85;
-    window.speechSynthesis.speak(utterance);
-  }, [result, lang]);
+      ? `تشخیص: ${diseaseName}۔ تجویز کردہ علاج اور ہدایات: ${treatmentText}`
+      : `Diagnosis: ${result.disease}. Recommended treatment and clinical guidance: ${treatmentText}`;
+
+    setIsSpeaking(true);
+    playTextToSpeech(
+      text,
+      lang === "ur" ? "ur" : "en",
+      () => setIsSpeaking(true),
+      () => setIsSpeaking(false),
+      () => setIsSpeaking(false)
+    );
+  }, [result, lang, isSpeaking]);
+
+  const toggleVoiceNotes = useCallback(async () => {
+    if (isRecordingNotes) {
+      notesRecorderRef.current?.stop();
+      setIsRecordingNotes(false);
+      return;
+    }
+    try {
+      setIsRecordingNotes(true);
+      const rec = await startVoiceRecording({
+        lang: lang === "ur" ? "ur" : "en",
+        onInterimTranscript: (txt) => {
+          if (txt) {
+            setFieldNotes((prev) => {
+              const base = prev.split(" [")[0].trim();
+              return base ? `${base} [${txt}]` : txt;
+            });
+          }
+        },
+        onFinalTranscript: (txt) => {
+          if (txt) {
+            setFieldNotes((prev) => {
+              const base = prev.split(" [")[0].trim();
+              return base ? `${base} ${txt}` : txt;
+            });
+          }
+          setIsRecordingNotes(false);
+        },
+        onListeningEnd: () => setIsRecordingNotes(false),
+        onError: () => setIsRecordingNotes(false),
+      });
+      notesRecorderRef.current = rec;
+    } catch (err) {
+      console.warn("[CaptureScreen] Voice recording error:", err);
+      setIsRecordingNotes(false);
+    }
+  }, [isRecordingNotes, lang]);
 
   const handleTrackRecovery = useCallback(async () => {
     if (!user || !result) return;
@@ -765,16 +828,46 @@ export default function CaptureScreen() {
             {lang === "ur" ? "تصویر لے لی گئی۔ تجزیہ کے لیے تیار" : "Photo captured. Ready for analysis"}
           </div>
 
-          {/* Field notes */}
+          {/* Field notes with Voice Dictation */}
           <div className="w-full max-w-sm">
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">
-              {lang === "ur" ? "فیلڈ نوٹس (اختیاری)" : "Field Notes (Optional)"}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide">
+                {lang === "ur" ? "فیلڈ نوٹس / علامات (اختیاری)" : "Field Notes / Symptoms (Optional)"}
+              </label>
+              <button
+                type="button"
+                onClick={toggleVoiceNotes}
+                className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-medium transition-all ${
+                  isRecordingNotes
+                    ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30"
+                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                }`}
+                title={lang === "ur" ? "آواز سے بول کر لکھیں" : "Speak to record notes"}
+              >
+                {isRecordingNotes ? (
+                  <>
+                    <MicOff className="w-3 h-3" />
+                    <span>{lang === "ur" ? "سن رہا ہے..." : "Listening..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-3 h-3" />
+                    <span>{lang === "ur" ? "بولیں (Voice Note)" : "Voice Note"}</span>
+                  </>
+                )}
+              </button>
+            </div>
             <textarea
               value={fieldNotes}
               onChange={(e) => setFieldNotes(e.target.value)}
-              placeholder={lang === "ur" ? "مثلاً کون سی فصل، عمر، کیا علامات دیکھی..." : "e.g., crop stage, symptoms observed, field location..."}
-              className="w-full px-3 py-2.5 bg-bg-elevated border border-border rounded-xl text-xs focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all resize-none"
+              placeholder={
+                isRecordingNotes
+                  ? (lang === "ur" ? "مائیک میں بولیں، خودکار طور پر لکھا جا رہا ہے..." : "Speaking... transcribing your voice with Groq Whisper...")
+                  : (lang === "ur" ? "مثلاً علامات، عمر، کب سے بیماری ہے یا مائیک دبائیں..." : "e.g., crop stage, patient symptoms, or tap Voice Note...")
+              }
+              className={`w-full px-3 py-2.5 bg-bg-elevated border rounded-xl text-xs focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all resize-none ${
+                isRecordingNotes ? "border-red-400 ring-2 ring-red-400/20 bg-red-500/5" : "border-border focus:border-primary"
+              }`}
               rows={2}
             />
           </div>
@@ -836,11 +929,15 @@ export default function CaptureScreen() {
 
                     </div>
                     <button
-                      onClick={speakDiagnosis}
-                      className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-                      title={lang === "ur" ? "آواز میں سنیں" : "Hear the diagnosis"}
+                      onClick={toggleSpeakDiagnosis}
+                      className={`w-9 h-9 backdrop-blur-sm rounded-full flex items-center justify-center transition-all ${
+                        isSpeaking
+                          ? "bg-primary text-white shadow-lg shadow-primary/30 animate-pulse scale-105"
+                          : "bg-white/20 text-white hover:bg-white/30"
+                      }`}
+                      title={isSpeaking ? (lang === "ur" ? "آواز بند کریں" : "Stop Voice") : (lang === "ur" ? "آواز میں سنیں (ElevenLabs)" : "Listen to diagnosis")}
                     >
-                      <Volume2 className="w-4 h-4 text-white" />
+                      {isSpeaking ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
                     </button>
                   </div>
                 </div>

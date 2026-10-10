@@ -1,4 +1,5 @@
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 
 const DOMAIN_PROMPTS = {
   crop: "an agricultural vision specialist helping smallholder farmers diagnose crop diseases from a photo",
@@ -71,36 +72,83 @@ Return ONLY a valid JSON object, with no markdown code blocks, in this exact for
 }`;
 
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: imageDataUrl } },
-            ],
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
-    });
+    let raw = "";
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[api/diagnose] OpenRouter status:", response.status, errText);
-      return res.status(500).json({ error: "llm_error", details: errText });
+    // Try OpenAI first (user's own key), then fallback to OpenRouter
+    let llmSuccess = false;
+
+    if (OPENAI_API_KEY && OPENAI_API_KEY.startsWith("sk-") && !OPENAI_API_KEY.startsWith("sk-or-")) {
+      try {
+        const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: promptText },
+                  { type: "image_url", image_url: { url: imageDataUrl } },
+                ],
+              },
+            ],
+            temperature: 0.3,
+            max_tokens: 1000,
+          }),
+        });
+        if (openaiRes.ok) {
+          const openaiData = await openaiRes.json();
+          raw = openaiData?.choices?.[0]?.message?.content || "";
+          if (raw.includes("{")) llmSuccess = true;
+        } else {
+          console.warn("[api/diagnose] OpenAI error:", openaiRes.status);
+        }
+      } catch (openaiErr) {
+        console.warn("[api/diagnose] OpenAI failed:", openaiErr.message);
+      }
     }
 
-    const data = await response.json();
-    const raw = data?.choices?.[0]?.message?.content || "";
+    if (!llmSuccess && OPENROUTER_API_KEY) {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: imageDataUrl } },
+              ],
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("[api/diagnose] OpenRouter status:", response.status, errText);
+        return res.status(500).json({ error: "llm_error", details: errText });
+      }
+
+      const data = await response.json();
+      raw = data?.choices?.[0]?.message?.content || "";
+    }
+
+    if (!raw || !raw.includes("{")) {
+      return res.status(500).json({ error: "llm_error", details: "No valid JSON from any LLM provider" });
+    }
+
     const cleaned = raw.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");

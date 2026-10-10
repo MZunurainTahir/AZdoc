@@ -1,5 +1,5 @@
 /**
- * Client for the FasalDoc backend (real AI diagnosis + chat).
+ * Client for the AZdoc backend (real AI diagnosis + chat).
  * All calls degrade gracefully: if the backend is unreachable (offline,
  * not deployed yet, cold start, etc.) callers fall back to the local
  * mock logic already used elsewhere in the app — the UI never breaks.
@@ -30,6 +30,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
 
 export interface DiagnoseResponse {
   disease: string;
@@ -41,19 +42,15 @@ export interface DiagnoseResponse {
   source: "ai" | "mock";
 }
 
-async function callOpenRouterVisionDirect(params: {
-  imageBase64: string;
+/**
+ * Build the vision prompt for diagnosis
+ */
+function buildVisionPrompt(params: {
   mode: DomainId;
   lang: "en" | "ur";
   symptoms?: Record<string, unknown>;
-}): Promise<DiagnoseResponse | null> {
-  if (!OPENROUTER_API_KEY) return null;
-  try {
-    const imageDataUrl = params.imageBase64.startsWith("data:")
-      ? params.imageBase64
-      : `data:image/jpeg;base64,${params.imageBase64}`;
-
-    const promptText = `You are a lead medical, veterinary, and agricultural multi-modal AI vision specialist for domain: ${params.mode}.
+}): string {
+  return `You are a lead medical, veterinary, and agricultural multi-modal AI vision specialist for domain: ${params.mode}.
 Language requested: ${params.lang === "ur" ? "Urdu script" : "English"}.
 User symptoms: ${params.symptoms ? JSON.stringify(params.symptoms) : "None specified"}.
 
@@ -62,11 +59,11 @@ STRICT ACCURACY & MULTI-MODAL DIAGNOSTIC INSTRUCTIONS:
 2. HUMAN DIAGNOSTICS:
    - Eye photos (redness, discharge, sclera) -> Prescribe Moxifloxacin drops / cool compress. NEVER prescribe skin creams/Clotrimazole for eyes!
    - Throat photos (exudate, swollen tonsils) -> Prescribe gargles, Paracetamol, Amoxicillin. NEVER prescribe skin creams for throats!
-   - Skin Fungal (circular ring rash) -> Prescribe Clotrimazole 1% Cream.
-   - Skin Eczema (dry flexor rash) -> Prescribe Hydrocortisone 1% Cream & emollients.
+   - Skin Fungal (circular ring rash) -> Prescribe Clotrimazole 1% Cream or Terbinafine 1%.
+   - Skin Eczema (dry flexor rash) -> Prescribe Hydrocortisone 1% cream and emollients.
 3. PET DIAGNOSTICS (PetsDoc):
-   - Ticks/Fleas (bugs attached to coat) -> Prescribe Bravecto / Simparica / Frontline Plus.
-   - Mange (hair loss, crusty skin) -> Prescribe Simparica / NexGard / Benzoyl Peroxide bath.
+   - Ticks/Fleas (bugs attached to coat) -> Prescribe Bravecto (Fluralaner) / Simparica / Frontline Plus.
+   - Mange (hair loss, crusty skin) -> Prescribe Simparica / NexGard / Benzoyl Peroxide baths.
    - Cat Ear Mites (coffee ground ear wax) -> Prescribe Selamectin (Revolution Spot-on) & Surolan drops. NEVER prescribe Permethrin to cats!
    - Hotspot (wet oozing lesion) -> Prescribe E-collar, Chlorhexidine wash, Cephalexin.
 
@@ -79,32 +76,13 @@ Return ONLY a valid JSON object in this exact format:
   "description": "2-3 sentences describing unique visual signs seen in this specific image",
   "remedy": "Anatomy and species safe step-by-step treatment plan with exact medicine names, dosage, care tips, and precautions.${params.lang === "ur" ? " (Write in Urdu)" : ""}"
 }`;
+}
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: imageDataUrl } },
-            ],
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    const rawContent = data?.choices?.[0]?.message?.content || "";
+/**
+ * Parse the raw LLM vision JSON response
+ */
+function parseVisionResponse(rawContent: string): DiagnoseResponse | null {
+  try {
     const cleaned = rawContent.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
@@ -120,9 +98,109 @@ Return ONLY a valid JSON object in this exact format:
       source: "ai",
     };
   } catch (err) {
-    console.warn("[api] Direct OpenRouter Vision call failed:", err);
+    console.warn("[api] Failed to parse vision JSON:", err);
     return null;
   }
+}
+
+async function callVisionDirect(params: {
+  imageBase64: string;
+  mode: DomainId;
+  lang: "en" | "ur";
+  symptoms?: Record<string, unknown>;
+}): Promise<DiagnoseResponse | null> {
+  const imageDataUrl = params.imageBase64.startsWith("data:")
+    ? params.imageBase64
+    : `data:image/jpeg;base64,${params.imageBase64}`;
+  const promptText = buildVisionPrompt(params);
+
+  // 1. Try OpenAI GPT-4o-mini Vision (only if genuine OpenAI key, not DeepSeek)
+  if (OPENAI_API_KEY && OPENAI_API_KEY.startsWith("sk-") && OPENAI_API_KEY !== (import.meta.env.VITE_DEEPSEEK_API_KEY as string | undefined)) {
+    try {
+      console.log("[api/vision] Attempting OpenAI GPT-4o-mini...");
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: imageDataUrl } },
+              ],
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rawContent = data?.choices?.[0]?.message?.content || "";
+        const parsed = parseVisionResponse(rawContent);
+        if (parsed) {
+          console.log("[api/vision] ✅ OpenAI response parsed");
+          return parsed;
+        }
+      } else {
+        const errText = await res.text();
+        console.warn("[api/vision] OpenAI error:", res.status, errText);
+      }
+    } catch (err) {
+      console.warn("[api/vision] OpenAI call failed:", err);
+    }
+  }
+
+  // 2. Try OpenRouter Vision (fallback)
+  if (OPENROUTER_API_KEY) {
+    try {
+      console.log("[api/vision] Attempting OpenRouter...");
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: imageDataUrl } },
+              ],
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rawContent = data?.choices?.[0]?.message?.content || "";
+        const parsed = parseVisionResponse(rawContent);
+        if (parsed) {
+          console.log("[api/vision] ✅ OpenRouter response parsed");
+          return parsed;
+        }
+      } else {
+        const errText = await res.text();
+        console.warn("[api/vision] OpenRouter error:", res.status, errText);
+      }
+    } catch (err) {
+      console.warn("[api/vision] OpenRouter call failed:", err);
+    }
+  }
+
+  return null;
 }
 
 export async function requestDiagnosis(params: {
@@ -132,13 +210,20 @@ export async function requestDiagnosis(params: {
   symptoms?: Record<string, unknown>;
 }): Promise<DiagnoseResponse | null> {
   if (!isOnline()) return null;
+
+  // Try direct LLM vision first (faster, no backend needed)
+  const directResult = await callVisionDirect(params);
+  if (directResult) return directResult;
+
+  // Fall back to backend API
   try {
     const backendRes = await postJson<DiagnoseResponse>("/api/diagnose", params);
     if (backendRes && backendRes.disease) return backendRes;
   } catch (err) {
-    console.warn("[api] diagnosis request to backend failed, trying direct LLM vision:", err);
+    console.warn("[api] diagnosis request to backend also failed:", err);
   }
-  return await callOpenRouterVisionDirect(params);
+
+  return null;
 }
 
 export interface ChatResponse {
@@ -164,4 +249,3 @@ export async function requestChatReply(params: {
 export function isBackendConfigured(): boolean {
   return Boolean(API_URL);
 }
-

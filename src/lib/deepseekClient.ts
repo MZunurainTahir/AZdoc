@@ -1,9 +1,11 @@
 /**
- * AZdoc AI Doctor Client — v4.0 (Multi-LLM + Client RAG Engine)
+ * AZdoc AI Doctor Client — v5.0 (Multi-LLM + OpenAI + Client RAG Engine)
  * Features:
+ *  • OpenAI GPT-4o / GPT-4o-mini (PRIMARY — user's own API key)
  *  • Gemini 2.0 Flash Vision & Text
  *  • Groq Llama 3.3 70B
- *  • OpenRouter DeepSeek / Claude / GPT-4o
+ *  • DeepSeek Chat
+ *  • OpenRouter multi-model gateway
  *  • Pollinations AI (Zero-key guaranteed free LLM endpoint)
  *  • Client RAG Knowledge Base Integration
  *  • Domain-isolated fallback (No Paracetamol for crops!)
@@ -12,11 +14,13 @@
 import type { DomainId } from "./domains";
 import { generateClientRAGAnswer } from "./ragClient";
 
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY as string | undefined;
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
 const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY) as string | undefined;
 
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -102,13 +106,14 @@ export interface DeepSeekMessage {
 
 /**
  * Main AI Doctor function — Routes through multi-model AI Pipeline:
- * 1. Gemini Direct API
- * 2. Groq Llama 3.3
- * 3. DeepSeek API
- * 4. OpenRouter API
- * 5. Pollinations AI (Zero-key guaranteed free endpoint)
- * 6. Client RAG Knowledge Base Engine
- * 7. Domain-Isolated Smart Fallback
+ * 1. DeepSeek API (PRIMARY — user's own key)
+ * 2. OpenAI GPT-4o-mini (if separate OpenAI key available)
+ * 3. Gemini Direct API
+ * 4. Groq Llama 3.3
+ * 5. OpenRouter API
+ * 6. Pollinations AI (Zero-key guaranteed free endpoint)
+ * 7. Client RAG Knowledge Base Engine
+ * 8. Domain-Isolated Smart Fallback
  */
 export async function askDeepSeekDoctor(params: {
   userMessage: string;
@@ -149,64 +154,16 @@ Current consultation domain: ${domain}`;
     { role: "user", content: userMessage },
   ];
 
-  // 1. Gemini API Direct (fastest & high accuracy)
-  if (GEMINI_API_KEY) {
-    try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: `${fullSystem}\n\nUser Question: ${userMessage}` }] },
-          ],
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
-      }
-    } catch (err) {
-      console.warn("[Gemini Direct] Failed:", err);
-    }
-  }
+  // Helper: convert messages to simple text format for providers that need it
+  const simpleMessages = messages.map((m) => ({
+    role: m.role,
+    content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+  }));
 
-  // 2. Groq Llama 3.3 (high speed & intelligence)
-  if (GROQ_API_KEY) {
+  // 1. DeepSeek API (PRIMARY — direct endpoint if genuine sk- key)
+  if (DEEPSEEK_API_KEY && DEEPSEEK_API_KEY.startsWith("sk-")) {
     try {
-      const groqMessages = messages.map((m) => ({
-        role: m.role,
-        content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-      }));
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: groqMessages,
-          temperature: 0.3,
-          max_tokens: 1500,
-        }),
-        signal: AbortSignal.timeout(20000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
-      }
-    } catch (err) {
-      console.warn("[Groq] Failed:", err);
-    }
-  }
-
-  // 3. DeepSeek API
-  if (DEEPSEEK_API_KEY) {
-    try {
+      console.log("[DeepSeek] Attempting DeepSeek Chat (PRIMARY)...");
       const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
@@ -215,29 +172,32 @@ Current consultation domain: ${domain}`;
         },
         body: JSON.stringify({
           model: "deepseek-chat",
-          messages,
+          messages: simpleMessages,
           temperature: 0.3,
           max_tokens: 1500,
         }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(12000),
       });
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
+        if (reply && reply.trim().length > 30) {
+          console.log("[DeepSeek] ✅ Response received (PRIMARY)");
+          return reply.trim();
+        }
+      } else {
+        const errText = await res.text();
+        console.warn("[DeepSeek] API error:", res.status, errText);
       }
     } catch (err) {
       console.warn("[DeepSeek] Failed:", err);
     }
   }
 
-  // 4. OpenRouter API
+  // 2. OpenRouter DeepSeek V3 (Authentic DeepSeek Chat - verified active)
   if (OPENROUTER_API_KEY) {
     try {
-      const orMessages = messages.map((m) => ({
-        role: m.role,
-        content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-      }));
+      console.log("[OpenRouter] Attempting DeepSeek V3 (deepseek/deepseek-chat)...");
       const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
@@ -247,25 +207,102 @@ Current consultation domain: ${domain}`;
           "X-Title": "AZdoc AI Doctor",
         },
         body: JSON.stringify({
-          model: "google/gemini-flash-1.5",
-          messages: orMessages,
+          model: "deepseek/deepseek-chat",
+          messages: simpleMessages,
           temperature: 0.3,
-          max_tokens: 1500,
+          max_tokens: 2000,
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data?.choices?.[0]?.message?.content as string | undefined;
+        if (reply && reply.trim().length > 30) {
+          console.log("[OpenRouter] ✅ DeepSeek V3 response received");
+          return reply.trim();
+        }
+      } else {
+        const errText = await res.text();
+        console.warn("[OpenRouter] DeepSeek API error:", res.status, errText);
+      }
+    } catch (err) {
+      console.warn("[OpenRouter/DeepSeek] Failed:", err);
+    }
+  }
+
+  // 3. Groq LLM (Ultra-fast high capability: GPT-OSS 120B & Qwen 27B)
+  if (GROQ_API_KEY) {
+    const groqModels = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"];
+    for (const model of groqModels) {
+      try {
+        console.log(`[Groq] Attempting ${model}...`);
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${GROQ_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: simpleMessages,
+            temperature: 0.3,
+            max_tokens: 2000,
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const reply = data?.choices?.[0]?.message?.content as string | undefined;
+          if (reply && reply.trim().length > 30) {
+            console.log(`[Groq] ✅ ${model} response received`);
+            return reply.trim();
+          }
+        } else {
+          const errText = await res.text();
+          console.warn(`[Groq] ${model} error:`, res.status, errText);
+        }
+      } catch (err) {
+        console.warn(`[Groq] ${model} request failed:`, err);
+      }
+    }
+  }
+
+  // 4. OpenRouter GPT-4o-mini
+  if (OPENROUTER_API_KEY) {
+    try {
+      console.log("[OpenRouter] Attempting GPT-4o-mini...");
+      const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://azdoc.vercel.app",
+          "X-Title": "AZdoc AI Doctor",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: simpleMessages,
+          temperature: 0.3,
+          max_tokens: 2000,
         }),
         signal: AbortSignal.timeout(20000),
       });
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content as string | undefined;
-        if (reply && reply.trim().length > 30) return reply.trim();
+        if (reply && reply.trim().length > 30) {
+          console.log("[OpenRouter] ✅ GPT-4o-mini response received");
+          return reply.trim();
+        }
       }
     } catch (err) {
-      console.warn("[OpenRouter] Failed:", err);
+      console.warn("[OpenRouter/GPT-4o] Failed:", err);
     }
   }
 
-  // 5. Pollinations AI (Zero API key required public LLM endpoint)
+  // 6. Pollinations AI (Zero API key required public LLM endpoint)
   try {
+    console.log("[Pollinations] Attempting free LLM endpoint...");
     const promptText = encodeURIComponent(`${fullSystem}\n\nUser Question: ${userMessage}`);
     const polRes = await fetch(`https://text.pollinations.ai/${promptText}?model=openai&system=${encodeURIComponent(fullSystem)}`, {
       signal: AbortSignal.timeout(15000),
@@ -273,6 +310,7 @@ Current consultation domain: ${domain}`;
     if (polRes.ok) {
       const reply = await polRes.text();
       if (reply && reply.trim().length > 30) {
+        console.log("[Pollinations] ✅ Response received");
         return reply.trim();
       }
     }
@@ -280,18 +318,20 @@ Current consultation domain: ${domain}`;
     console.warn("[Pollinations AI] Failed:", err);
   }
 
-  // 6. RAG Knowledge Base fallback (Instant local verified answers)
+  // 7. RAG Knowledge Base fallback (Instant local verified answers)
   const ragAnswer = generateClientRAGAnswer(userMessage, lang === "ur" ? "ur" : "en", domain);
   if (ragAnswer && ragAnswer.length > 40) {
+    console.log("[RAG] ✅ Local knowledge base answer provided");
     return ragAnswer;
   }
 
-  // 7. Domain-Isolated Fallback Response
+  // 8. Domain-Isolated Fallback Response
+  console.log("[Fallback] Using domain-isolated static response");
   return fallbackResponse(userMessage, lang, domain);
 }
 
 /**
- * Vision analysis using OpenRouter or Gemini
+ * Vision analysis using OpenAI GPT-4o or OpenRouter vision models
  */
 async function analyzeImageWithVision(params: {
   imageBase64: string;
@@ -313,16 +353,60 @@ VISION ANALYSIS INSTRUCTIONS:
 
   const visionUserMessage = userMessage || getDomainImagePrompt(domain, lang);
 
-  // Pollinations Vision free endpoint or OpenRouter
+  // 1. OpenAI GPT-4o-mini Vision (only if genuine OpenAI key)
+  if (OPENAI_API_KEY && OPENAI_API_KEY.startsWith("sk-") && OPENAI_API_KEY !== DEEPSEEK_API_KEY) {
+    try {
+      console.log("[Vision/OpenAI] Attempting GPT-4o-mini vision...");
+      const res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: visionSystemPrompt },
+            {
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: dataUrl } },
+                { type: "text", text: visionUserMessage },
+              ],
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 2000,
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data?.choices?.[0]?.message?.content as string | undefined;
+        if (reply && reply.trim().length > 30) {
+          console.log("[Vision/OpenAI] ✅ Vision response received");
+          return reply.trim();
+        }
+      } else {
+        const errText = await res.text();
+        console.warn("[Vision/OpenAI] API error:", res.status, errText);
+      }
+    } catch (err) {
+      console.warn("[Vision/OpenAI] Failed:", err);
+    }
+  }
+
+  // 2. OpenRouter Vision models (fallback)
   if (OPENROUTER_API_KEY) {
     const models = [
-      "google/gemini-2.0-flash-exp:free",
-      "google/gemini-flash-1.5",
       "openai/gpt-4o-mini",
+      "google/gemini-flash-1.5",
     ];
 
     for (const model of models) {
       try {
+        console.log(`[Vision/OpenRouter] Trying ${model}...`);
         const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
           method: "POST",
           headers: {
@@ -344,7 +428,7 @@ VISION ANALYSIS INSTRUCTIONS:
               },
             ],
             temperature: 0.2,
-            max_tokens: 1500,
+            max_tokens: 2000,
           }),
           signal: AbortSignal.timeout(25000),
         });
@@ -353,6 +437,7 @@ VISION ANALYSIS INSTRUCTIONS:
           const data = await res.json();
           const reply = data?.choices?.[0]?.message?.content as string | undefined;
           if (reply && reply.trim().length > 30) {
+            console.log(`[Vision/OpenRouter] ✅ ${model} response received`);
             return reply.trim();
           }
         }
